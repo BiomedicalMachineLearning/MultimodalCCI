@@ -1,5 +1,6 @@
 import statistics
 import numpy as np
+import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import linkage, dendrogram
@@ -305,8 +306,8 @@ def lr_clustering(sample, n_clusters=0):
         pd.DataFrame: A DataFrame with the cluster assignments for each sample.
     """
     
-    if "per_lr_cci_cell_type" in samples:
-        samples.pop("per_lr_cci_cell_type")
+    if "per_lr_cci_cell_type" in sample:
+        sample.pop("per_lr_cci_cell_type")
 
     # Initialize an empty dataframe to store the results
     result_df = pd.DataFrame(index=sample.keys(), columns=sample.keys())
