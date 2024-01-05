@@ -1,9 +1,10 @@
 from matplotlib import pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import networkx as nx
+import numpy as np
 
 
-def plot_network(
+def network_plot(
     network,
     p_vals=None,
     normalise=True,
@@ -166,7 +167,7 @@ def plot_network(
     plt.show()
 
 
-def plot_dissim_hist(dissimilarity_scores):
+def dissim_hist(dissimilarity_scores):
     """Plots a histogram of dissimilarity scores.
 
     Args:

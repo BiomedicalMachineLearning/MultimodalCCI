@@ -1,3 +1,13 @@
+import statistics
+import numpy as np
+from scipy.spatial.distance import pdist, squareform
+from sklearn.cluster import AgglomerativeClustering
+from scipy.cluster.hierarchy import linkage, dendrogram
+import matplotlib.pyplot as plt
+
+from . import scoring as sc
+
+
 def normalise_samples_to_target(samples, target=None):
     """Normalizes LR matrices within a list of samples to a target sample based on 
     number of spots to account for differences in sample size.
@@ -107,12 +117,13 @@ def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
 
     tech_counts = []
     for tech_samples in samples:
-
         group_counts = []
+        lr_pair_counts = []
         for group_samples in tech_samples:
-
             total_counts = 0
+            lr_pair_count = 0
             for pair, matrix in group_samples.items():
+                lr_pair_count += 1
                 if method == "mean":
                     total_counts += matrix.mean().mean()
                 elif method == "sum":
@@ -120,6 +131,7 @@ def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
                 else:
                     raise ValueError("Invalid method option.")
 
+            total_counts = total_counts / lr_pair_count
             group_counts.append(total_counts)
         tech_counts.append(statistics.mean(group_counts))
 
@@ -212,7 +224,7 @@ def calculate_dissim(sample1, sample2):
 
     dissims = {}
     for lr in set(sample1.keys()).intersection(set(sample2.keys())):
-        dissims[lr] = dissimilarity_score(sample1[lr], sample2[lr])
+        dissims[lr] = sc.dissimilarity_score(sample1[lr], sample2[lr])
 
     return dissims
 
@@ -232,10 +244,6 @@ def get_lrs_per_celltype(samples, sender, reciever):
     """
 
     names = []
-
-    samples = [aged_integrated, young_integrated]
-    sender = "Vascular"
-    reciever = "Astrocytes"
 
     for i in range(len(samples)):
         samples[i] = {
@@ -283,3 +291,73 @@ def get_lrs_per_celltype(samples, sender, reciever):
         data[group_name] = lr_props
 
     return data
+
+
+def lr_clustering(sample, n_clusters=0):
+    """Clusters LR pairs based on LR matrix similarities.
+
+    Args:
+        sample (dict): A dictionary containing LR matrices.
+        n_clusters (int) (optional): The desired number of clusters. If 0, the optimal 
+        number is determined using silhouette analysis. Defaults to 0.
+
+    Returns:
+        pd.DataFrame: A DataFrame with the cluster assignments for each sample.
+    """
+    
+    if "per_lr_cci_cell_type" in samples:
+        samples.pop("per_lr_cci_cell_type")
+
+    # Initialize an empty dataframe to store the results
+    result_df = pd.DataFrame(index=sample.keys(), columns=sample.keys())
+
+    # Iterate through the keys and compare the dataframes
+    for key1, df1 in sample.items():
+        for key2, df2 in sample.items():
+            result = sc.dissimilarity_score(df1, df2)
+
+            # Store the result in the result_df
+            result_df.loc[key1, key2] = result
+
+    # Compute distance matrix from disimilarity matrix
+    result_df = result_df.astype("float64")
+    distances = pdist(result_df.values, metric="euclidean")
+    dist_matrix = squareform(distances)
+
+    if n_clusters > 0:
+        # Number of clusters (adjust as needed)
+        n_clusters = n_clusters
+
+        # Perform hierarchical clustering
+        model = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
+        clusters = model.fit_predict(dist_matrix)
+
+    if n_clusters == 0:
+
+        # Evaluate silhouette score for different numbers of clusters
+        silhouette_scores = []
+        for n_clusters in range(2, 11):
+            clusterer = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
+            cluster_labels = clusterer.fit_predict(dist_matrix)
+            silhouette_avg = silhouette_score(dist_matrix, cluster_labels)
+            silhouette_scores.append(silhouette_avg)
+
+        # Plot the silhouette scores
+        plt.figure(figsize=(10, 7))
+        plt.plot(range(2, 11), silhouette_scores, marker="o")
+        plt.title("Silhouette Score for Different Numbers of Clusters")
+        plt.xlabel("Number of Clusters")
+        plt.ylabel("Silhouette Score")
+        plt.show()
+
+        # Perform hierarchical clustering
+        model = AgglomerativeClustering(
+            n_clusters=np.argmax(silhouette_scores) + 2, linkage="ward"
+        )  # as indexing starts from 0
+        clusters = model.fit_predict(dist_matrix)
+
+    clusters = pd.DataFrame(clusters)
+    clusters.index = sample.keys()
+    clusters.rename(columns={0: "Cluster"}, inplace=True)
+
+    return clusters

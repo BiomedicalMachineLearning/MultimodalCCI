@@ -1,3 +1,7 @@
+import numpy as np
+import pandas as pd
+
+
 def align_dataframes(m1, m2):
     """Aligns two DataFrames by matching their indices and columns, filling missing
     values with 0.
@@ -86,7 +90,7 @@ def dissimilarity_score(
     return wt_dissim + bin_dissim
 
 
-def permute_and_test(m1, m2, num_perms=100000):
+def perm_test(m1, m2, num_perms=100000):
     """Performs permutation testing to assess the significance of a dissimilarity score.
 
     Args:
