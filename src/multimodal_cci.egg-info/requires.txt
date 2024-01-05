@@ -1,0 +1,2 @@
+stlearn>=0.4.12
+networkx>=3.2.1
