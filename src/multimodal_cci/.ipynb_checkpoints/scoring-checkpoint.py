@@ -7,10 +7,10 @@ def align_dataframes(m1, m2):
     values with 0.
 
     Args:
-        m1, m2: The DataFrames to align.
+        m1, m2 (pd.DataFrame): The DataFrames to align.
 
     Returns:
-        A tuple of the aligned DataFrames.
+        tuple: A tuple of the aligned DataFrames.
     """
 
     m1, m2 = m1.align(m2, fill_value=0)
@@ -32,18 +32,19 @@ def dissimilarity_score(
     """Calculates a dissimilarity score between two matrices.
 
     Args:
-        m1, m2: Two matrices to compare (as DataFrames or NumPy arrays).
-        lmbda (optional): Weighting factor for weighted vs binary dissimilarity (0-1). 0
-        is fully binary and 1 is fully weighted. Defaults to 0.5.
-        normalise (optional): Normalizes matrices before comparison. Defaults to False.
-        binary (optional): Treats matrices as binary (0 or 1). Defaults to False.
-        trim (optional): Trims matrices to common rows and columns. Otherwise pads 0s to
-        uncommon rows and columns. Defaults to False.
-        only_non_zero (optional): Only considers non-zero edges for calculation.
+        m1, m2 (pd.DataFrame): Two matrices to compare.
+        lmbda (float) (optional): Weighting factor for weighted vs binary dissimilarity 
+        (0-1). 0 is fully binary and 1 is fully weighted. Defaults to 0.5.
+        normalise (bool) (optional): Normalizes matrices before comparison. Defaults to 
+        False.
+        binary (bool) (optional): Treats matrices as binary (0 or 1). Defaults to False.
+        trim (bool) (optional): Trims matrices to common rows and columns. Otherwise 
+        pads 0s to uncommon rows and columns. Defaults to False.
+        only_non_zero (bool) (optional): Only considers non-zero edges for calculation.
         Defaults to False.
 
     Returns:
-        The dissimilarity score between the two matrices.
+        pd.DataFrame: The dissimilarity scores between the two matrices.
     """
 
     if trim:
@@ -94,11 +95,12 @@ def perm_test(m1, m2, num_perms=100000):
     """Performs permutation testing to assess the significance of a dissimilarity score.
 
     Args:
-        m1, m2: Two matrices to compare (as DataFrames).
-        num_perms (optional): Number of permutations to perform. Defaults to 100000.
+        m1, m2 (pd.DataFrame): Two matrices to compare (as DataFrames).
+        num_perms (int) (optional): Number of permutations to perform. Defaults to 
+        100000.
 
     Returns:
-        A DataFrame of p-values for each element in the matrices.
+        pd.DataFrame: A DataFrame of p-values for each element in the matrices.
     """
 
     dfs = align_dataframes(m1, m2)
@@ -130,3 +132,22 @@ def perm_test(m1, m2, num_perms=100000):
     p_vals = pd.DataFrame(p_vals, index=m1.index, columns=m1.columns)
 
     return p_vals
+
+
+def non_zero_multiply(m1, m2):
+    """Multiplies two Dataframes, ignoring zeros unless present in both.
+
+    Args:
+        m1, m2 (pd.DataFrame): Two matrices to compare (as DataFrames).
+
+    Returns:
+        pd.DataFrame: A DataFrame of multiplied values
+    """
+    
+    result_df = df1 * df2
+    result_df.fillna(0)
+    result_df = result_df.where((df1 == 0) & (df2 == 0), 0)
+    result_df = result_df.where((df1 != 0) | (df2 == 0), df1)
+    result_df = result_df.where((df1 == 0) | (df2 != 0), df2)
+
+    return result_df

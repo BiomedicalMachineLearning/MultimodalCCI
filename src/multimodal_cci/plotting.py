@@ -46,6 +46,7 @@ def network_plot(
 
     if normalise:
         network = network / network.sum().sum()
+    network = network.astype(float)
     G_network = nx.from_pandas_adjacency(network, create_using=nx.DiGraph)
     pos = nx.circular_layout(G_network)
     weights = nx.get_edge_attributes(G_network, "weight")
@@ -178,4 +179,18 @@ def dissim_hist(dissimilarity_scores):
     plt.xlim(0, 1)
     plt.xlabel("Dissimilarity Score")
     plt.ylabel("Count")
+    plt.show()
+
+def silhouette_scores_plot(silhouette_scores):
+    """Plots a line plot of silhouette scores.
+
+    Args:
+        silhouette_scores (list): A list of silhouette scores.
+    """
+    
+    plt.figure(figsize=(10, 7))
+    plt.plot(range(2, 11), silhouette_scores, marker="o")
+    plt.title("Silhouette Score for Different Numbers of Clusters")
+    plt.xlabel("Number of Clusters")
+    plt.ylabel("Silhouette Score")
     plt.show()

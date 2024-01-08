@@ -7,6 +7,7 @@ src/multimodal_cci/__init__.py
 src/multimodal_cci/integration.py
 src/multimodal_cci/plotting.py
 src/multimodal_cci/scoring.py
+src/multimodal_cci/tools.py
 src/multimodal_cci.egg-info/PKG-INFO
 src/multimodal_cci.egg-info/SOURCES.txt
 src/multimodal_cci.egg-info/dependency_links.txt

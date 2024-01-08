@@ -1,36 +1,41 @@
 import statistics
 import numpy as np
 import pandas as pd
-from scipy.spatial.distance import pdist, squareform
-from sklearn.cluster import AgglomerativeClustering
-from scipy.cluster.hierarchy import linkage, dendrogram
 import matplotlib.pyplot as plt
 
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import silhouette_score
+from scipy.spatial.distance import pdist, squareform
+from scipy.cluster.hierarchy import linkage, dendrogram, ClusterWarning
+from warnings import simplefilter
+
 from . import scoring as sc
+from . import plotting as pl
+
+simplefilter("ignore", ClusterWarning)
 
 
-def normalise_samples_to_target(samples, target=None):
-    """Normalizes LR matrices within a list of samples to a target sample based on 
+def normalise_samples_to_target(samples, sample_sizes, target=None):
+    """Normalizes LR matrices within a list of samples to a target sample based on
     number of spots to account for differences in sample size.
 
     Args:
-        samples: A list of anndata samples that have been run through stLearn CCI
-        target (optional): A target sample to normalize to. If not provided, the first 
-        sample's shape is used.
+        samples (list): A list of dictionaries of LR matrices
+        sample_sizes (list): A list of number of spots for each sample
+        target (int) (optional): A target sample size to normalize to. If not provided, 
+        the first sample's size is used.
 
     Returns:
-        The list of samples with normalized matrices.
+        list: The list of samples with normalized matrices.
     """
 
     if target is None:
-        target = samples[0].shape[0]
+        target = sample_sizes[0]
 
     for i, sample in enumerate(samples):
-        for lr, matrix in sample.uns["per_lr_cci_cell_type"].items():
-            samples[i].uns["per_lr_cci_cell_type"][lr] = matrix * (
-                target.shape[0] / sample.shape[0]
-            )
-
+        for lr, matrix in sample.items():
+            samples[i][lr] = matrix * (target / sample_sizes[i])
+        
     return samples
 
 
@@ -38,21 +43,23 @@ def get_majority_lr_pairs(samples, equal_to=False):
     """Identifies the LR pairs present in a majority of samples.
 
     Args:
-        samples: A list of anndata samples that have been run through stLearn CCI
-        equal_to (optional): If True, includes LR pairs present in exactly half of the 
-        samples. Defaults to False.
+        samples (list): A list of dictionaries of LR matrices
+        equal_to (bool) (optional): If True, includes LR pairs present in exactly half 
+        of the samples. Defaults to False.
 
     Returns:
-        A list of LR pairs that are present in a majority of samples.
+        list: A list of LR pairs that are present in a majority of samples.
     """
 
     lr_pairs_counts = {}
     lr_pairs = []
 
     for sample in samples:
-        for lr_pair, matrix in sample.uns["per_lr_cci_cell_type"].items():
+        for lr_pair, matrix in sample.items():
             if sum(sum(matrix.values)) != 0:
-                lr_pairs_counts[lr_pair] = lr_pairs_counts.setdefault(lr_pair, 0) + 1
+                lr_pairs_counts[lr_pair] = (
+                    lr_pairs_counts.setdefault(lr_pair, 0) + 1
+                )
 
     for lr_pair, count in lr_pairs_counts.items():
         if equal_to:
@@ -69,24 +76,26 @@ def get_avg_lr_pairs(samples, lr_pairs):
     """Calculates the average matrix for each LR pair across a list of samples.
 
     Args:
-        samples: A list of anndata samples that have been run through stLearn CCI
-        lr_pairs: A list of LR pairs to calculate averages for.
+        samples (list): A list of dictionaries of LR matrices
+        lr_pairs (list): A list of LR pairs to calculate averages for.
 
     Returns:
-        A dictionary where keys are LR pairs and values are the corresponding average 
-        matrices.
+        dict: A dictionary where keys are LR pairs and values are the corresponding 
+        average matrices.
     """
 
     lr_pairs_matrices = {}
 
     for sample in samples:
-        for lr_pair, matrix in sample.uns["per_lr_cci_cell_type"].items():
+        for lr_pair, matrix in sample.items():
 
             if lr_pair in lr_pairs:
                 current_matrix = lr_pairs_matrices.get(lr_pair)
 
                 if current_matrix is not None:
-                    common_rows = list(set(matrix.index) & set(current_matrix.index))
+                    common_rows = list(
+                        set(matrix.index) & set(current_matrix.index)
+                    )
                     common_cols = list(
                         set(matrix.columns) & set(current_matrix.columns)
                     )
@@ -105,12 +114,13 @@ def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
     """Normalizes matrices between different technologies.
 
     Args:
-        samples: A nested list of samples, organized by technology and then group. 
-        Example: [[t1g1, t1g2], [t2g1, t2g2]].
-        method (optional): The normalization method, either "mean" or "sum". Defaults to
-        "mean". Normalises based on either the mean or sum of the values in the matrix.
-        tech_norm (optional): The index of the technology to use as the normalization 
-        reference. Defaults to 0.
+        samples (list): A nested list of samples, organized by technology and then 
+        group. Example: [[t1g1, t1g2], [t2g1, t2g2]].
+        method (str) (optional): The normalization method, either "mean" or "sum". 
+        Defaults to "mean". Normalises based on either the mean or sum of the values in 
+        the matrix.
+        tech_norm (str) (optional): The index of the technology to use as the 
+        normalization reference. Defaults to 0.
 
     Returns:
         The normalized nested list of samples.
@@ -145,27 +155,27 @@ def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
     return samples
 
 
-def integrate_between_tech(samples, method="multiply"):
+def integrate_between_tech(samples):
     """Integrates matrices from different technologies using a specified method.
 
     Args:
-        samples: A list of samples with different technologies.
-        method (optional): The integration method, currently supports "multiply". 
-        Defaults to "multiply".
+        samples (list): A list of samples with different technologies.
 
     Returns:
-        A dictionary where keys are LR pairs and values are the integrated matrices.
+        dict: A dictionary where keys are LR pairs and values are the integrated 
+        matrices.
     """
 
     integrated = {}
 
-    if method == "multiply":
-        lr_pairs = None
-        for tech in range(len(samples)):
-            if lr_pairs is None:
-                lr_pairs = set(samples[tech].keys())
-            else:
-                lr_pairs = lr_pairs.intersection(set(samples[tech].keys()))
+    lr_pairs = None
+    for tech in range(len(samples)):
+        if lr_pairs is None:
+            lr_pairs = set(samples[tech].keys())
+        else:
+            lr_pairs = lr_pairs.intersection(set(samples[tech].keys()))
+
+    if len(samples) == 2:
         for lr in sorted(lr_pairs):
             matrix = None
             for tech in range(len(samples)):
@@ -176,21 +186,33 @@ def integrate_between_tech(samples, method="multiply"):
                     matrix = matrix * samples[tech][lr]
                     matrix = matrix.fillna(0)
             integrated[lr] = matrix
+            
+    elif len(samples) > 2:
+        for lr in sorted(lr_pairs):
+            integrated_matrix = None
+            for tech in range(len(samples)):
+                matrix = samples[tech][lr]
+                if integrated_matrix is None:
+                    integrated_matrix = matrix
+                else:
+                    integrated_matrix = sc.non_zero_multiply(integrated_matrix, matrix)
+            matrix = np.power(df, 1 / len(samples))        
+            integrated[lr] = matrix
     else:
-        raise ValueError("Invalid method option.")
+        raise ValueError("Integration needs at least two samples")
 
     return integrated
 
 
 def calculate_overall_interactions(sample):
-    """Calculates an overall interaction matrix by combining matrices for different LR 
+    """Calculates an overall interaction matrix by combining matrices for different LR
     pairs within a sample.
 
     Args:
-        sample: A sample containing matrices for different LR pairs.
+        sample (dict): A sample containing matrices for different LR pairs.
 
     Returns:
-        A matrix representing the overall interactions.
+        pd.DataFrame: A matrix representing the overall interactions.
     """
 
     total = None
@@ -204,7 +226,7 @@ def calculate_overall_interactions(sample):
                 total = total.fillna(0)
 
     if total is None:
-        print("Integration Failed: No overlap between technologies")
+        return None
 
     total = total / total.sum().sum()
     total = total.fillna(0)
@@ -216,11 +238,11 @@ def calculate_dissim(sample1, sample2):
     """Calculates a dissimilarity score between two samples for each common LR pair.
 
     Args:
-        sample1, sample2: Two samples containing matrices for LR pairs.
+        sample1, sample2 (dict): Two samples containing matrices for LR pairs.
 
     Returns:
-        A dictionary where keys are common LR pairs and values are the dissimilarity 
-        scores.
+        dict: A dictionary where keys are common LR pairs and values are the 
+        dissimilarity scores.
     """
 
     dissims = {}
@@ -299,13 +321,13 @@ def lr_clustering(sample, n_clusters=0):
 
     Args:
         sample (dict): A dictionary containing LR matrices.
-        n_clusters (int) (optional): The desired number of clusters. If 0, the optimal 
+        n_clusters (int) (optional): The desired number of clusters. If 0, the optimal
         number is determined using silhouette analysis. Defaults to 0.
 
     Returns:
         pd.DataFrame: A DataFrame with the cluster assignments for each sample.
     """
-    
+
     if "per_lr_cci_cell_type" in sample:
         sample.pop("per_lr_cci_cell_type")
 
@@ -343,13 +365,7 @@ def lr_clustering(sample, n_clusters=0):
             silhouette_avg = silhouette_score(dist_matrix, cluster_labels)
             silhouette_scores.append(silhouette_avg)
 
-        # Plot the silhouette scores
-        plt.figure(figsize=(10, 7))
-        plt.plot(range(2, 11), silhouette_scores, marker="o")
-        plt.title("Silhouette Score for Different Numbers of Clusters")
-        plt.xlabel("Number of Clusters")
-        plt.ylabel("Silhouette Score")
-        plt.show()
+        pl.silhouette_scores_plot(silhouette_scores)
 
         # Perform hierarchical clustering
         model = AgglomerativeClustering(
@@ -362,3 +378,51 @@ def lr_clustering(sample, n_clusters=0):
     clusters.rename(columns={0: "Cluster"}, inplace=True)
 
     return clusters
+
+
+def subset_clusters(sample, clusters):
+    """Groups LR pairs using their clusters.
+
+    Args:
+        sample (dict): A dictionary containing LR matrices.
+        clusters (pd.DataFrame): A DataFrame with the cluster assignments for each 
+        sample.
+
+    Returns:
+        dict: A dictionary with clusters as keys and the subsetted sample per cluster as
+        values.
+    """
+    
+    cluster_dict = {}
+
+    for ind in clusters.index:
+        cluster = clusters['Cluster'][ind]
+        
+        if cluster not in cluster_dict:
+            cluster_dict[cluster] = {}
+        cluster_dict[cluster][ind] = sample[ind]
+
+    cluster_dict = dict(sorted(cluster_dict.items()))
+    
+    return cluster_dict
+    
+
+def calculate_cluster_interactions(sample):
+    """Calculates an overall interaction matrix per cluster by combining matrices for 
+    different LR pairs within a sample.
+
+    Args:
+        sample (dict): A dictionary of samples containing matrices for different LR 
+        pairs.
+
+    Returns:
+        dict: A dictionary with clusters as keys and the overall interaction matrix for
+        that cluster as the value
+    """
+    
+    cluster_dict = {}
+    
+    for key in sample.keys():
+        cluster_dict[key] = calculate_overall_interactions(sample[key])
+
+    return cluster_dict
