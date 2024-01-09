@@ -143,11 +143,13 @@ def non_zero_multiply(m1, m2):
     Returns:
         pd.DataFrame: A DataFrame of multiplied values
     """
-    
-    result_df = df1 * df2
-    result_df.fillna(0)
-    result_df = result_df.where((df1 == 0) & (df2 == 0), 0)
-    result_df = result_df.where((df1 != 0) | (df2 == 0), df1)
-    result_df = result_df.where((df1 == 0) | (df2 != 0), df2)
+
+    m1, m2 = mmcci.sc.align_dataframes(m1, m2)
+    result_df = m1 * m2
+    result_df = result_df.where((m1 != 0) | (m2 != 0), 0)
+    result_df = result_df.where((m1 != 0) | (m2 == 0), m2)
+    result_df = result_df.where((m1 == 0) | (m2 != 0), m1)
+    result_df = result_df.fillna(0)
 
     return result_df
+    

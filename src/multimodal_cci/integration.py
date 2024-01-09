@@ -8,6 +8,7 @@ from sklearn.metrics import silhouette_score
 from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage, dendrogram, ClusterWarning
 from warnings import simplefilter
+from tqdm import tqdm
 
 from . import scoring as sc
 from . import plotting as pl
@@ -184,6 +185,7 @@ def integrate_between_tech(samples):
                     matrix = matrix.fillna(0)
                 else:
                     matrix = matrix * samples[tech][lr]
+                    matrix = np.sqrt(matrix)
                     matrix = matrix.fillna(0)
             integrated[lr] = matrix
             
@@ -196,8 +198,8 @@ def integrate_between_tech(samples):
                     integrated_matrix = matrix
                 else:
                     integrated_matrix = sc.non_zero_multiply(integrated_matrix, matrix)
-            matrix = np.power(df, 1 / len(samples))        
-            integrated[lr] = matrix
+            integrated_matrix = np.power(integrated_matrix, 1 / len(samples))        
+            integrated[lr] = integrated_matrix.fillna(0)
     else:
         raise ValueError("Integration needs at least two samples")
 
@@ -333,14 +335,16 @@ def lr_clustering(sample, n_clusters=0):
 
     # Initialize an empty dataframe to store the results
     result_df = pd.DataFrame(index=sample.keys(), columns=sample.keys())
-
+    
     # Iterate through the keys and compare the dataframes
-    for key1, df1 in sample.items():
-        for key2, df2 in sample.items():
-            result = sc.dissimilarity_score(df1, df2)
-
-            # Store the result in the result_df
-            result_df.loc[key1, key2] = result
+    with tqdm(total=len(sample), desc="Processing") as pbar:
+        for key1, df1 in sample.items():
+            for key2, df2 in sample.items():
+                result = sc.dissimilarity_score(df1, df2)
+    
+                # Store the result in the result_df
+                result_df.loc[key1, key2] = result
+            pbar.update(1)
 
     # Compute distance matrix from disimilarity matrix
     result_df = result_df.astype("float64")

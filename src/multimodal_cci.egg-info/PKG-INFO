@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: multimodal_cci
-Version: 0.5.2
+Version: 0.6.1
 Summary: A Python package for processing multi-modal CCI data
 Home-page: https://github.com/BiomedicalMachineLearning/MultimodalCCI
 Author: Genomics and Machine Learning lab
