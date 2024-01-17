@@ -3,6 +3,8 @@ from matplotlib.colors import LinearSegmentedColormap
 import networkx as nx
 import numpy as np
 
+from . import plot_helper
+
 
 def network_plot(
     network,
@@ -168,6 +170,40 @@ def network_plot(
     plt.show()
 
 
+def chord_plot(network, show=True, title=None, label_size=10):
+    """Plots a chord plot of a network
+
+    Args:
+        network (pandas.DataFrame or numpy.ndarray): The adjacency matrix representing
+        the network.
+        show (bool): Whether to show plot or not. Defaults to True.
+        title (str): Title of the plot. Defaults to None.
+        label_size (int): Font size of the labels. Defaults to None.
+    """
+
+    network = network.transpose()
+    fig = plt.figure(figsize=(8, 8))
+
+    flux = network.values
+    cell_names = network.index.values.astype(str)
+    nodes = cell_names
+
+    ax = plt.axes([0, 0, 1, 1])
+    nodePos = plot_helper.chordDiagram(flux, ax, lim=1.25)
+    ax.axis("off")
+    prop = dict(fontsize=label_size, ha="center", va="center")
+
+    for i in range(len(cell_names)):
+        x, y = nodePos[i][0:2]
+        ax.text(x, y, nodes[i], rotation=nodePos[i][2], **prop)
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+
+    if show:
+        plt.show()
+    else:
+        return fig, ax
+
+
 def dissim_hist(dissimilarity_scores):
     """Plots a histogram of dissimilarity scores.
 
@@ -181,13 +217,14 @@ def dissim_hist(dissimilarity_scores):
     plt.ylabel("Count")
     plt.show()
 
+
 def silhouette_scores_plot(silhouette_scores):
     """Plots a line plot of silhouette scores.
 
     Args:
         silhouette_scores (list): A list of silhouette scores.
     """
-    
+
     plt.figure(figsize=(10, 7))
     plt.plot(range(2, 11), silhouette_scores, marker="o")
     plt.title("Silhouette Score for Different Numbers of Clusters")

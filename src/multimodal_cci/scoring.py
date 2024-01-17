@@ -33,12 +33,12 @@ def dissimilarity_score(
 
     Args:
         m1, m2 (pd.DataFrame): Two matrices to compare.
-        lmbda (float) (optional): Weighting factor for weighted vs binary dissimilarity 
+        lmbda (float) (optional): Weighting factor for weighted vs binary dissimilarity
         (0-1). 0 is fully binary and 1 is fully weighted. Defaults to 0.5.
-        normalise (bool) (optional): Normalizes matrices before comparison. Defaults to 
+        normalise (bool) (optional): Normalizes matrices before comparison. Defaults to
         False.
         binary (bool) (optional): Treats matrices as binary (0 or 1). Defaults to False.
-        trim (bool) (optional): Trims matrices to common rows and columns. Otherwise 
+        trim (bool) (optional): Trims matrices to common rows and columns. Otherwise
         pads 0s to uncommon rows and columns. Defaults to False.
         only_non_zero (bool) (optional): Only considers non-zero edges for calculation.
         Defaults to False.
@@ -84,9 +84,11 @@ def dissimilarity_score(
     norm_weight_difference = abs_weight_difference / weight_sum
     norm_weight_difference_sum = np.sum(np.sum(norm_weight_difference))
     wt_dissim = lmbda * (norm_weight_difference_sum / n_of_edges)
+    wt_dissim = wt_dissim.fillna(0)
 
     n_diff = np.where(abs_weight_difference > 0, 1, 0).sum().sum()
     bin_dissim = (1 - lmbda) * (n_diff / n_of_edges)
+    bin_dissim = bin_dissim.fillna(0)
 
     return wt_dissim + bin_dissim
 
@@ -96,7 +98,7 @@ def perm_test(m1, m2, num_perms=100000):
 
     Args:
         m1, m2 (pd.DataFrame): Two matrices to compare (as DataFrames).
-        num_perms (int) (optional): Number of permutations to perform. Defaults to 
+        num_perms (int) (optional): Number of permutations to perform. Defaults to
         100000.
 
     Returns:
@@ -134,22 +136,36 @@ def perm_test(m1, m2, num_perms=100000):
     return p_vals
 
 
-def non_zero_multiply(m1, m2):
-    """Multiplies two Dataframes, ignoring zeros unless present in both.
+def multiply_non_zero_values(dataframes):
+    """Multiply non-zero values across a list of pandas DataFrames.
 
-    Args:
-        m1, m2 (pd.DataFrame): Two matrices to compare (as DataFrames).
+    Parameters:
+    - dataframes (list): A list of pandas DataFrames with the same shape and column/row
+    names.
 
     Returns:
-        pd.DataFrame: A DataFrame of multiplied values
+    - pd.DataFrame: A new DataFrame where each cell contains the product of non-zero
+    values or zero if more than 50% of the values in the corresponding cells are zero.
     """
 
-    m1, m2 = mmcci.sc.align_dataframes(m1, m2)
-    result_df = m1 * m2
-    result_df = result_df.where((m1 != 0) | (m2 != 0), 0)
-    result_df = result_df.where((m1 != 0) | (m2 == 0), m2)
-    result_df = result_df.where((m1 == 0) | (m2 != 0), m1)
-    result_df = result_df.fillna(0)
+    result_df = dataframes[0]
+
+    for i in range(len(dataframes)):
+        dataframes[i], result_df = align_dataframes(dataframes[i], result_df)
+
+    for i in range(len(dataframes)):
+        dataframes[i], result_df = align_dataframes(dataframes[i], result_df)
+
+    for i, row in result_df.iterrows():
+        for j in row.index:
+            values = [df.loc[i, j] for df in dataframes]
+            non_zero_values = [value for value in values if value != 0]
+
+            if len(non_zero_values) / len(values) <= 0.5:
+                result_df.loc[i, j] = 0
+            else:
+                result_df.loc[i, j] = np.prod(non_zero_values)
+
+    result_df = np.power(result_df, 1 / len(values)).fillna(0)
 
     return result_df
-    
