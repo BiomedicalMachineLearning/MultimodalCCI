@@ -129,11 +129,10 @@ def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
     tech_counts = []
     for tech_samples in samples:
         group_counts = []
-        lr_pair_counts = []
-        for samples in tech_samples:
+        for group_samples in tech_samples:
             total_counts = 0
             lr_pair_count = 0
-            for pair, matrix in samples.items():
+            for pair, matrix in group_samples.items():
                 lr_pair_count += 1
                 if method == "mean":
                     total_counts += matrix.mean().mean()

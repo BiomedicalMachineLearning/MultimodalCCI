@@ -170,12 +170,20 @@ def network_plot(
     plt.show()
 
 
-def chord_plot(network, show=True, title=None, label_size=10):
+def chord_plot(
+        network,
+        min_int=0.01,
+        n_top_ccis=10,
+        show=True,
+        title=None,
+        label_size=10):
     """Plots a chord plot of a network
 
     Args:
         network (pandas.DataFrame or numpy.ndarray): The adjacency matrix representing
         the network.
+        min_int (float): Minimum interactions to display cell type. Defaults to 0.01.
+        n_top_ccis (int): Number of top cell types to display. Defaults to 10.
         show (bool): Whether to show plot or not. Defaults to True.
         title (str): Title of the plot. Defaults to None.
         label_size (int): Font size of the labels. Defaults to None.
@@ -185,7 +193,16 @@ def chord_plot(network, show=True, title=None, label_size=10):
     fig = plt.figure(figsize=(8, 8))
 
     flux = network.values
-    cell_names = network.index.values.astype(str)
+
+    total_ints = flux.sum(axis=1) + flux.sum(axis=0) - flux.diagonal()
+    print(total_ints)
+    keep = total_ints > min_int
+    # Limit of 10 for good display #
+    if sum(keep) > n_top_ccis:
+        keep = np.argsort(-total_ints)[0:n_top_ccis]
+    flux = flux[:, keep]
+    flux = flux[keep, :].astype(float)
+    cell_names = network.index.values.astype(str)[keep]
     nodes = cell_names
 
     ax = plt.axes([0, 0, 1, 1])
