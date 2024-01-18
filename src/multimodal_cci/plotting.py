@@ -195,7 +195,6 @@ def chord_plot(
     flux = network.values
 
     total_ints = flux.sum(axis=1) + flux.sum(axis=0) - flux.diagonal()
-    print(total_ints)
     keep = total_ints > min_int
     # Limit of 10 for good display #
     if sum(keep) > n_top_ccis:
