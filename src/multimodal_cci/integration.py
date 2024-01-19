@@ -6,7 +6,11 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
 from scipy.spatial.distance import pdist, squareform
-from scipy.cluster.hierarchy import linkage, dendrogram, ClusterWarning
+from scipy.cluster.hierarchy import ClusterWarning
+from sklearn import preprocessing as pp
+from sklearn.decomposition import PCA
+from scipy.spatial.distance import squareform, pdist
+from scipy.cluster import hierarchy
 from warnings import simplefilter
 from tqdm import tqdm
 
@@ -250,68 +254,59 @@ def calculate_dissim(sample1, sample2):
     return dissims
 
 
-def get_lrs_per_celltype(samples, sender, reciever):
+def get_lrs_per_celltype(sample, sender, reciever):
     """Compares LR pairs between two samples for specific cell types.
 
     Args:
-        samples (list): A list of dictionaries containing LR matrices for the
+        samples (dict): A dictionary containing LR matrices for the
         first sample.
         sender (str): The sender cell type.
         reciever (str): The receiver cell type.
 
     Returns:
-        dict: A dictionary with keys 'sample1', 'sample2', etc., each containing
-        a set of LR pairs and proportion of its weighting.
+        dict: A list of LR pairs and proportion of its weighting.
     """
 
     names = []
 
-    for i in range(len(samples)):
-        samples[i] = {
-            key: df.loc[[sender]]
-            for key, df in samples[i].items()
-            if sender in df.index
-        }
+    sample = {
+        key: df.loc[[sender]]
+        for key, df in sample.items()
+        if sender in df.index
+    }
 
-        samples[i] = {
-            key: df[[reciever]]
-            for key, df in samples[i].items()
-            if reciever in df.columns
-        }
+    sample = {
+        key: df[[reciever]]
+        for key, df in sample.items()
+        if reciever in df.columns
+    }
 
-        samples[i] = {
-            key: df
-            for key, df in samples[i].items()
-            if not df.map(lambda x: x == 0).all().all()
-        }
+    sample = {
+        key: df
+        for key, df in sample.items()
+        if not df.map(lambda x: x == 0).all().all()
+    }
 
-        samples[i] = {
-            key: df
-            for key, df in samples[i].items()
-            if not df.map(lambda x: x == 0).all().all()
-        }
-        names.append("sample" + str(i + 1))
+    sample = {
+        key: df
+        for key, df in sample.items()
+        if not df.map(lambda x: x == 0).all().all()
+    }
 
-    data = {}
+    lr_props = {}
+    total = 0
+    for lr_pair in set(sample.keys()):
+        score = sample[lr_pair].at[sender, reciever]
+        total += score
 
-    for group_name, lr_dict in zip(names, samples):
+    for lr_pair in set(sample.keys()):
+        lr_props[lr_pair] = sample[lr_pair].at[sender, reciever] / total
 
-        lr_props = {}
-        total = 0
-        for lr_pair in set(lr_dict.keys()):
-            score = lr_dict[lr_pair].at[sender, reciever]
-            total += score
+    lr_props = dict(
+        sorted(lr_props.items(), key=lambda item: item[1], reverse=True)
+    )
 
-        for lr_pair in set(lr_dict.keys()):
-            lr_props[lr_pair] = lr_dict[lr_pair].at[sender, reciever] / total
-
-        lr_props = dict(
-            sorted(lr_props.items(), key=lambda item: item[1], reverse=True)
-        )
-
-        data[group_name] = lr_props
-
-    return data
+    return lr_props
 
 
 def lr_clustering(sample, n_clusters=0):
@@ -344,7 +339,7 @@ def lr_clustering(sample, n_clusters=0):
     with tqdm(total=len(sample), desc="Processing") as pbar:
         for key1, df1 in sample.items():
             for key2, df2 in sample.items():
-                result = dissimilarity_score(df1, df2, lmbda=0.5, only_non_zero=True)
+                result = sc.dissimilarity_score(df1, df2, lmbda=0.5, only_non_zero=True)
 
                 # Store the result in the result_df
                 result_df.loc[key1, key2] = result
@@ -392,7 +387,7 @@ def lr_clustering(sample, n_clusters=0):
             silhouette_avg = silhouette_score(pc_com_dist_matrix, cluster_labels)
             silhouette_scores.append(silhouette_avg)
 
-        silhouette_scores_plot(silhouette_scores)
+        pl.silhouette_scores_plot(silhouette_scores)
 
         # Perform hierarchical clustering
         model = AgglomerativeClustering(
@@ -423,6 +418,7 @@ def lr_clustering(sample, n_clusters=0):
     final_clusters = final_clusters.iloc[:, 1:]
     final_clusters = final_clusters.rename(columns={0: "LRs"})
     final_clusters = final_clusters[["LRs", "Cluster"]]
+    final_clusters.set_index('LRs', inplace=True)
 
     return final_clusters
 

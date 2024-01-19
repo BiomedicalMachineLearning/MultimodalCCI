@@ -21,7 +21,7 @@ def read_cellphone_db(path):
 
         key = cp_obj["interacting_pair"][ind]
 
-        val = cp_obj.iloc[ind, cp_obj.columns.get_loc("classification") + 1 :]
+        val = cp_obj.iloc[ind, cp_obj.columns.get_loc("classification") + 1:]
         val = pd.DataFrame({"Index": val.index, "Value": val.values})
         val[["Row", "Col"]] = val["Index"].str.split("|", expand=True)
         val = val.drop("Index", axis=1)
@@ -66,6 +66,38 @@ def read_squidpy(result):
             row = np.where(cell_type_set == c1)[0][0]
             col = np.where(cell_type_set == c2)[0][0]
             int_matrix[row, col] = result["means"][c1][c2][lig][rec]
+
+        lr_dict[lr_] = pd.DataFrame(
+            int_matrix, index=cell_type_set, columns=cell_type_set
+        )
+
+    return lr_dict
+
+
+def read_cellchat(result):
+    """Reads a CellChat ligand-receptor analysis output (cellchat@dr) and converts it to
+    a dictionary of LR matrices that can be used with the multimodal cci functions.
+
+    Args:
+        result (dict): The output from cellchat@dr.
+
+    Returns:
+        dict: A dictionary of LR matrices.
+    """
+
+    lr_dict = {}
+
+    cell_type_set = np.unique(np.concatenate([result["source"], result["target"]]))
+
+    for i in result.index:
+        lr_ = result['interaction_name'][i]
+        if lr_ not in lr_dict.keys():
+            int_matrix = np.zeros((len(cell_type_set), len(cell_type_set)))
+        else:
+            int_matrix = lr_dict[lr_].values
+        row = np.where(cell_type_set == result["source"][i])[0][0]
+        col = np.where(cell_type_set == result["target"][i])[0][0]
+        int_matrix[row, col] = result["prob"][i]
 
         lr_dict[lr_] = pd.DataFrame(
             int_matrix, index=cell_type_set, columns=cell_type_set

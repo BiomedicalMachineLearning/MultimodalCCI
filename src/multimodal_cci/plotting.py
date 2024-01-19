@@ -174,6 +174,7 @@ def chord_plot(
         network,
         min_int=0.01,
         n_top_ccis=10,
+        colors=None,
         show=True,
         title=None,
         label_size=10):
@@ -184,6 +185,8 @@ def chord_plot(
         the network.
         min_int (float): Minimum interactions to display cell type. Defaults to 0.01.
         n_top_ccis (int): Number of top cell types to display. Defaults to 10.
+        colors (dict): Dict of colors for each cell type to use for the plot. Defaults
+        to None.
         show (bool): Whether to show plot or not. Defaults to True.
         title (str): Title of the plot. Defaults to None.
         label_size (int): Font size of the labels. Defaults to None.
@@ -204,8 +207,15 @@ def chord_plot(
     cell_names = network.index.values.astype(str)[keep]
     nodes = cell_names
 
+    color_list = []
+    if colors is not None:
+        for cell in cell_names:
+            color_list.append(colors[cell])
+    else:
+        color_list = None
+
     ax = plt.axes([0, 0, 1, 1])
-    nodePos = plot_helper.chordDiagram(flux, ax, lim=1.25)
+    nodePos = plot_helper.chordDiagram(flux, ax, lim=1.25, colors=color_list)
     ax.axis("off")
     prop = dict(fontsize=label_size, ha="center", va="center")
 

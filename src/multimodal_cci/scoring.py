@@ -84,11 +84,9 @@ def dissimilarity_score(
     norm_weight_difference = abs_weight_difference / weight_sum
     norm_weight_difference_sum = np.sum(np.sum(norm_weight_difference))
     wt_dissim = lmbda * (norm_weight_difference_sum / n_of_edges)
-    wt_dissim = wt_dissim.fillna(0)
 
     n_diff = np.where(abs_weight_difference > 0, 1, 0).sum().sum()
     bin_dissim = (1 - lmbda) * (n_diff / n_of_edges)
-    bin_dissim = bin_dissim.fillna(0)
 
     return wt_dissim + bin_dissim
 
