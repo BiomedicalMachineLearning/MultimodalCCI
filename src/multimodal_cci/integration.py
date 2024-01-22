@@ -44,19 +44,16 @@ def normalise_samples_to_target(samples, sample_sizes, target=None):
     return samples
 
 
-def get_majority_lr_pairs(samples, equal_to=False, return_counts=False):
+def get_majority_lr_pairs(samples, equal_to=False):
     """Identifies the LR pairs present in a majority of samples.
 
     Args:
         samples (list): A list of dictionaries of LR matrices
         equal_to (bool) (optional): If True, includes LR pairs present in exactly half
         of the samples. Defaults to False.
-        return_counts (bool) (optional): If True, the function returns the number of
-        samples each LR pair is present in.
 
     Returns:
-        list or dict: A list of LR pairs that are present in a majority of samples or a
-        dictionary of LR pairs and counts if return_counts=True.
+        list: A list of LR pairs that are present in a majority of samples
     """
 
     lr_pairs_counts = {}
@@ -75,8 +72,6 @@ def get_majority_lr_pairs(samples, equal_to=False, return_counts=False):
             if count > len(samples) / 2:
                 lr_pairs.append(lr_pair)
 
-    if return_counts:
-        return lr_pairs_counts
     return lr_pairs
 
 
@@ -174,20 +169,15 @@ def integrate_between_tech(samples):
 
     if len(samples) == 2:
         lr_pairs = get_majority_lr_pairs(samples, equal_to=False)
-        lr_pairs_counts = {lr: 2 for lr in lr_pairs}
 
     elif len(samples) > 2:
         lr_pairs = sorted(get_majority_lr_pairs(samples, equal_to=True))
-        lr_pairs_counts = get_majority_lr_pairs(
-            samples, equal_to=True, return_counts=True
-        )
 
     else:
         raise ValueError("Integration needs at least two samples")
 
     for i in range(len(lr_pairs)):
         lr = lr_pairs[i]
-        lr_count = lr_pairs_counts[lr]
 
         for tech in range(len(samples)):
             if lr in samples[tech]:
