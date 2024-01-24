@@ -20,13 +20,13 @@ from . import plotting as pl
 simplefilter("ignore", ClusterWarning)
 
 
-def normalise_samples_to_target(samples, sample_sizes, target=None):
+def normalise_within_tech(samples, sample_sizes, target=None):
     """Normalizes LR matrices within a list of samples to a target sample based on
     number of spots to account for differences in sample size.
 
     Args:
-        samples (list): A list of dictionaries of LR matrices
-        sample_sizes (list): A list of number of spots for each sample
+        samples (list): A list of dictionaries of LR matrices.
+        sample_sizes (list): A list of number of spots for each sample.
         target (int) (optional): A target sample size to normalize to. If not provided,
         the first sample's size is used.
 
@@ -75,41 +75,27 @@ def get_majority_lr_pairs(samples, equal_to=False):
     return lr_pairs
 
 
-def get_avg_lr_pairs(samples, lr_pairs):
-    """Calculates the average matrix for each LR pair across a list of samples.
+def subset_samples(samples, lr_pairs):
+    """Subsets each sample in samples to only contain the LR pairs in lr_pairs.
 
     Args:
-        samples (list): A list of dictionaries of LR matrices
-        lr_pairs (list): A list of LR pairs to calculate averages for.
+        samples (list): A list of dictionaries of LR matrices.
+        lr_pairs (list): A list of LR pairs to include in the subsetted samples.
 
     Returns:
-        dict: A dictionary where keys are LR pairs and values are the corresponding
-        average matrices.
+        list: A list of subsetted dictionaries of LR matrices containing only
+        the LR pairs in lr_pairs.
     """
 
-    lr_pairs_matrices = {}
+    subsetted_samples = []
 
     for sample in samples:
-        for lr_pair, matrix in sample.items():
+        subsetted_samples.append({lr: sample[lr] for lr in lr_pairs})
 
-            if lr_pair in lr_pairs:
-                current_matrix = lr_pairs_matrices.get(lr_pair)
-
-                if current_matrix is not None:
-                    common_rows = list(set(matrix.index) & set(current_matrix.index))
-                    common_cols = list(
-                        set(matrix.columns) & set(current_matrix.columns)
-                    )
-                    matrix = matrix.loc[common_rows, common_cols]
-                    current_matrix = current_matrix.loc[common_rows, common_cols]
-                    lr_pairs_matrices[lr_pair] = current_matrix + matrix / len(samples)
-                else:
-                    lr_pairs_matrices[lr_pair] = matrix / len(samples)
-
-    return lr_pairs_matrices
+    return subsetted_samples
 
 
-def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
+def normalise_between_tech(samples, method="mean"):
     """Normalizes matrices between different technologies.
 
     Args:
@@ -118,8 +104,6 @@ def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
         method (str) (optional): The normalization method, either "mean" or "sum".
         Defaults to "mean". Normalises based on either the mean or sum of the values in
         the matrix.
-        tech_norm (str) (optional): The index of the technology to use as the
-        normalization reference. Defaults to 0.
 
     Returns:
         The normalized nested list of samples.
@@ -127,33 +111,31 @@ def normalise_samples_between_tech(samples, method="mean", tech_norm=0):
 
     tech_counts = []
     for tech_samples in samples:
-        group_counts = []
-        for group_samples in tech_samples:
-            total_counts = 0
-            lr_pair_count = 0
-            for pair, matrix in group_samples.items():
-                lr_pair_count += 1
-                if method == "mean":
-                    total_counts += matrix.mean().mean()
-                elif method == "sum":
-                    total_counts += matrix.sum().sum()
-                else:
-                    raise ValueError("Invalid method option.")
+        # group_counts = []
+        # for group_samples in tech_samples:
+        total_counts = 0
+        lr_pair_count = 0
+        for pair, matrix in tech_samples.items():
+            lr_pair_count += 1
+            if method == "mean":
+                total_counts += matrix.mean().mean()
+            elif method == "sum":
+                total_counts += matrix.sum().sum()
+            else:
+                raise ValueError("Invalid method option.")
 
-            total_counts = total_counts / lr_pair_count
-            group_counts.append(total_counts)
-        tech_counts.append(statistics.mean(group_counts))
+        total_counts = total_counts / lr_pair_count
+        tech_counts.append(total_counts)
 
     for tech in range(len(samples)):
-        for group in range(len(samples[tech])):
-            for lr, df in samples[tech][group].items():
-                factor = tech_counts[tech_norm] / tech_counts[tech]
-                samples[tech][group][lr] = df * factor
+        for lr, df in samples[tech].items():
+            factor = max(tech_counts) / tech_counts[tech]
+            samples[tech][lr] = df * factor
 
     return samples
 
 
-def integrate_between_tech(samples):
+def integrate_samples(samples):
     """Integrates matrices from different technologies.
 
     Args:
@@ -196,7 +178,7 @@ def integrate_between_tech(samples):
     return integrated
 
 
-def calculate_overall_interactions(sample):
+def calculate_overall_interactions(sample, normalisation=True):
     """Calculates an overall interaction matrix by combining matrices for different LR
     pairs within a sample.
 
@@ -211,10 +193,16 @@ def calculate_overall_interactions(sample):
     for lr in sample.keys():
         if sample[lr].sum().sum() > 0:
             if total is not None:
-                total = total + sample[lr] / sample[lr].sum().sum()
+                if normalisation:
+                    total = total + sample[lr] / sample[lr].sum().sum()
+                else:
+                    total = total + sample[lr]
                 total = total.fillna(0)
             else:
-                total = sample[lr] / sample[lr].sum().sum()
+                if normalisation:
+                    total = sample[lr] / sample[lr].sum().sum()
+                else:
+                    total = sample[lr]
                 total = total.fillna(0)
 
     if total is None:

@@ -129,7 +129,7 @@ def perm_test(m1, m2, num_perms=100000):
     # Calculate p-values
     p_vals = (sums1 + sums2) / (2 * num_perms)
 
-    p_vals = pd.DataFrame(p_vals, index=m1.index, columns=m1.columns)
+    p_vals = pd.DataFrame(p_vals, index=dfs[0].index, columns=dfs[1].columns)
 
     return p_vals
 
@@ -146,7 +146,7 @@ def multiply_non_zero_values(dataframes):
     values or zero if more than 50% of the values in the corresponding cells are zero.
     """
 
-    result_df = dataframes[0]
+    result_df = dataframes[0].astype('float64')
 
     for i in range(len(dataframes)):
         dataframes[i], result_df = align_dataframes(dataframes[i], result_df)
@@ -156,13 +156,13 @@ def multiply_non_zero_values(dataframes):
 
     for i, row in result_df.iterrows():
         for j in row.index:
-            values = [df.loc[i, j] for df in dataframes]
+            values = [df.loc[i, j].astype('float64') for df in dataframes]
             non_zero_values = [value for value in values if value != 0]
 
             if len(non_zero_values) / len(values) <= 0.5:
                 result_df.loc[i, j] = 0
             else:
-                result_df.loc[i, j] = np.prod(non_zero_values)
+                result_df.loc[i, j] = np.prod(non_zero_values).astype('float64')
 
     result_df = np.power(result_df, 1 / len(values)).fillna(0)
 
