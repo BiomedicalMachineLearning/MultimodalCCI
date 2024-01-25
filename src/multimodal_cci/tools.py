@@ -2,6 +2,30 @@ import pandas as pd
 import numpy as np
 
 
+def align_dataframes(m1, m2):
+    """Aligns two DataFrames by matching their indices and columns, filling missing
+    values with 0.
+
+    Args:
+        m1, m2 (pd.DataFrame): The DataFrames to align.
+
+    Returns:
+        tuple: A tuple of the aligned DataFrames.
+    """
+
+    m1, m2 = m1.align(m2, fill_value=0)
+
+    columns = sorted(set(m1.columns) | set(m2.columns))
+    m1 = m1.reindex(columns, fill_value=0)
+    m2 = m2.reindex(columns, fill_value=0)
+
+    rows = sorted(set(m1.index) | set(m2.index))
+    m1 = m1.reindex(rows, fill_value=0)
+    m2 = m2.reindex(rows, fill_value=0)
+
+    return m1, m2
+
+
 def read_cellphone_db(path):
     """Reads a CellPhoneDB interaction scores txt file and converts it to a dictionary
     of LR matrices that can be used with the multimodal cci functions.
@@ -74,17 +98,18 @@ def read_squidpy(result):
     return lr_dict
 
 
-def read_cellchat(result):
+def read_cellchat(path):
     """Reads a CellChat ligand-receptor analysis output (cellchat@dr) and converts it to
     a dictionary of LR matrices that can be used with the multimodal cci functions.
 
     Args:
-        result (dict): The output from cellchat@dr.
+        path (str): The output from cellchat@dr.
 
     Returns:
         dict: A dictionary of LR matrices.
     """
 
+    result = pd.read_csv(path)
     lr_dict = {}
 
     cell_type_set = np.unique(np.concatenate([result["source"], result["target"]]))
@@ -98,6 +123,40 @@ def read_cellchat(result):
         row = np.where(cell_type_set == result["source"][i])[0][0]
         col = np.where(cell_type_set == result["target"][i])[0][0]
         int_matrix[row, col] = result["prob"][i]
+
+        lr_dict[lr_] = pd.DataFrame(
+            int_matrix, index=cell_type_set, columns=cell_type_set
+        )
+
+    return lr_dict
+
+
+def read_natmi(path):
+    """Reads a NATMI ligand-receptor analysis output (Edges_lrc2p.csv) and converts it to
+    a dictionary of LR matrices that can be used with the multimodal cci functions.
+
+    Args:
+        path (str): The path to Edges_lrc2p.csv.
+
+    Returns:
+        dict: A dictionary of LR matrices.
+    """
+
+    result = pd.read_csv(path)
+    lr_dict = {}
+
+    cell_type_set = np.unique(np.concatenate(
+        [result["Sending cluster"], result["Target cluster"]]))
+
+    for i in result.index:
+        lr_ = result['Ligand symbol'][i] + "_" + result['Receptor symbol'][i]
+        if lr_ not in lr_dict.keys():
+            int_matrix = np.zeros((len(cell_type_set), len(cell_type_set)))
+        else:
+            int_matrix = lr_dict[lr_].values
+        row = np.where(cell_type_set == result["Sending cluster"][i])[0][0]
+        col = np.where(cell_type_set == result["Target cluster"][i])[0][0]
+        int_matrix[row, col] = result["Edge average expression weight"][i]
 
         lr_dict[lr_] = pd.DataFrame(
             int_matrix, index=cell_type_set, columns=cell_type_set

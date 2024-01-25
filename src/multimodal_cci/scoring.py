@@ -1,29 +1,6 @@
 import numpy as np
-import pandas as pd
 
-
-def align_dataframes(m1, m2):
-    """Aligns two DataFrames by matching their indices and columns, filling missing
-    values with 0.
-
-    Args:
-        m1, m2 (pd.DataFrame): The DataFrames to align.
-
-    Returns:
-        tuple: A tuple of the aligned DataFrames.
-    """
-
-    m1, m2 = m1.align(m2, fill_value=0)
-
-    columns = sorted(set(m1.columns) | set(m2.columns))
-    m1 = m1.reindex(columns, fill_value=0)
-    m2 = m2.reindex(columns, fill_value=0)
-
-    rows = sorted(set(m1.index) | set(m2.index))
-    m1 = m1.reindex(rows, fill_value=0)
-    m2 = m2.reindex(rows, fill_value=0)
-
-    return m1, m2
+from . import tools as tl
 
 
 def dissimilarity_score(
@@ -55,7 +32,7 @@ def dissimilarity_score(
         m2 = m2.loc[common_rows, common_cols]
 
     else:
-        m1, m2 = align_dataframes(m1, m2)
+        m1, m2 = tl.align_dataframes(m1, m2)
 
     m1 = m1.values
     m2 = m2.values
@@ -91,49 +68,6 @@ def dissimilarity_score(
     return wt_dissim + bin_dissim
 
 
-def perm_test(m1, m2, num_perms=100000):
-    """Performs permutation testing to assess the significance of a dissimilarity score.
-
-    Args:
-        m1, m2 (pd.DataFrame): Two matrices to compare (as DataFrames).
-        num_perms (int) (optional): Number of permutations to perform. Defaults to
-        100000.
-
-    Returns:
-        pd.DataFrame: A DataFrame of p-values for each element in the matrices.
-    """
-
-    dfs = align_dataframes(m1, m2)
-
-    matrix1 = dfs[0].values
-    matrix2 = dfs[1].values
-
-    result_matrix1 = dfs[0].values.copy()
-    result_matrix2 = dfs[1].values.copy()
-
-    def permtr(x):
-        return np.apply_along_axis(
-            np.random.permutation,
-            axis=0,
-            arr=np.apply_along_axis(np.random.permutation, axis=1, arr=x),
-        )
-
-    # Permute and test for matrix1
-    perm1 = [permtr(matrix2) for _ in range(num_perms)]
-    sums1 = np.sum([result_matrix1 < perm_result for perm_result in perm1], axis=0)
-
-    # Permute and test for matrix2
-    perm2 = [permtr(matrix1) for _ in range(num_perms)]
-    sums2 = np.sum([result_matrix2 < perm_result for perm_result in perm2], axis=0)
-
-    # Calculate p-values
-    p_vals = (sums1 + sums2) / (2 * num_perms)
-
-    p_vals = pd.DataFrame(p_vals, index=dfs[0].index, columns=dfs[1].columns)
-
-    return p_vals
-
-
 def multiply_non_zero_values(dataframes):
     """Multiply non-zero values across a list of pandas DataFrames.
 
@@ -146,23 +80,24 @@ def multiply_non_zero_values(dataframes):
     values or zero if more than 50% of the values in the corresponding cells are zero.
     """
 
-    result_df = dataframes[0].astype('float64')
+    result_df = dataframes[0]
 
     for i in range(len(dataframes)):
-        dataframes[i], result_df = align_dataframes(dataframes[i], result_df)
+        dataframes[i], result_df = tl.align_dataframes(dataframes[i], result_df)
 
     for i in range(len(dataframes)):
-        dataframes[i], result_df = align_dataframes(dataframes[i], result_df)
+        dataframes[i], result_df = tl.align_dataframes(dataframes[i], result_df)
 
+    result_df = result_df.astype(np.float64)
     for i, row in result_df.iterrows():
         for j in row.index:
-            values = [df.loc[i, j].astype('float64') for df in dataframes]
+            values = [df.loc[i, j] for df in dataframes]
             non_zero_values = [value for value in values if value != 0]
 
             if len(non_zero_values) / len(values) <= 0.5:
                 result_df.loc[i, j] = 0
             else:
-                result_df.loc[i, j] = np.prod(non_zero_values).astype('float64')
+                result_df.loc[i, j] = np.prod(non_zero_values, dtype=np.float64)
 
     result_df = np.power(result_df, 1 / len(values)).fillna(0)
 
