@@ -242,6 +242,7 @@ def lr_clustering(result_df, sample, n_clusters=0, show_plots=True):
     # Perform PCA on weighted edges of interaction network
     flatten_dfs = [df.to_numpy().flatten() for df in sample.values()]
     flatten_dfs = pd.DataFrame(flatten_dfs)
+    flatten_dfs = flatten_dfs.fillna(0)
     scaler = pp.StandardScaler()
     data_scaled = scaler.fit_transform(flatten_dfs)
     pca = PCA(n_components=2)

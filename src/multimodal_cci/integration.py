@@ -96,8 +96,6 @@ def normalise_between_tech(samples, method="mean"):
 
     tech_counts = []
     for tech_samples in samples:
-        # group_counts = []
-        # for group_samples in tech_samples:
         total_counts = 0
         lr_pair_count = 0
         for pair, matrix in tech_samples.items():

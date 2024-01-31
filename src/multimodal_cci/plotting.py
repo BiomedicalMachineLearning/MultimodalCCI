@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 
 from . import plot_helper
+from . import analysis as an
 
 
 def network_plot(
@@ -171,13 +172,14 @@ def network_plot(
 
 
 def chord_plot(
-        network,
-        min_int=0.01,
-        n_top_ccis=10,
-        colors=None,
-        show=True,
-        title=None,
-        label_size=10):
+    network,
+    min_int=0.01,
+    n_top_ccis=10,
+    colors=None,
+    show=True,
+    title=None,
+    label_size=10,
+):
     """Plots a chord plot of a network
 
     Args:
@@ -221,7 +223,8 @@ def chord_plot(
 
     for i in range(len(cell_names)):
         x, y = nodePos[i][0:2]
-        ax.text(x, y, nodes[i], rotation=nodePos[i][2], **prop)
+        if label_size != 0:
+            ax.text(x, y, nodes[i], rotation=nodePos[i][2], **prop)
     fig.suptitle(title, fontsize=12, fontweight="bold")
 
     if show:
@@ -241,6 +244,52 @@ def dissim_hist(dissimilarity_scores):
     plt.xlim(0, 1)
     plt.xlabel("Dissimilarity Score")
     plt.ylabel("Count")
+    plt.show()
+
+
+def lr_top_dissimilarity(dissimilarity_scores, n=10, top=True):
+    """Plots a bar plot of LR pairs with highest/lowest dissimilarity scores.
+
+    Args:
+        dissimilarity_scores (dict): A dictionary of dissimilarity scores.
+        n (int): Number of LR pairs to plot.
+        top (bool): If True, plot LR pairs with highest dissimilarity scores.
+        If False, plot LR pairs with lowest dissimilarity scores.
+    """
+
+    reverse = not top
+    sorted_items = sorted(
+        dissimilarity_scores.items(), key=lambda x: x[1], reverse=reverse
+    )
+    top_n_items = sorted_items[-n:]
+    keys, values = zip(*top_n_items)
+
+    plt.barh(keys, values)
+    plt.xlabel("Dissimilarity Score")
+    plt.ylabel("LR Pair")
+    plt.show()
+
+
+def lrs_per_celltype(sample, sender, receiver, n=15):
+    """Plots a bar plot of LR pairs and their proportions for a given sender and
+    receiver cell type.
+
+    Args:
+        sample (dict): A dictionary of LR pairs.
+        sender (str): The sender cell type.
+        receiver (str): The receiver cell type.
+        n (int): Number of LR pairs to plot. If None, plot all LR pairs. Defaults to
+        15.
+    """
+
+    pairs = an.get_lrs_per_celltype(sample, sender, receiver)
+    keys = list(pairs.keys())[:n]
+    values = list(pairs.values())[:n]
+    keys.reverse()
+    values.reverse()
+    plt.barh(keys, values)
+    plt.xlabel("Proportion")
+    plt.ylabel("LR Pair")
     plt.show()
 
 
