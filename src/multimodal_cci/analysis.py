@@ -1,22 +1,30 @@
-import statistics
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import numpy as np
+import networkx as nx
+import scipy as sp
+import scanpy as sc
 import gseapy as gp
+import seaborn as sns
+import statistics
+import subprocess
+import umap
+import matplotlib.pyplot as plt
+
+from matplotlib import pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 
 from gseapy import barplot, dotplot
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import silhouette_score
+from tqdm import tqdm
 from scipy.spatial.distance import pdist, squareform
-from scipy.cluster.hierarchy import ClusterWarning
+from scipy.cluster.hierarchy import linkage, dendrogram, ClusterWarning
+from scipy.cluster import hierarchy
+from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn import preprocessing as pp
 from sklearn.decomposition import PCA
-from scipy.spatial.distance import squareform, pdist
-from scipy.cluster import hierarchy
 from warnings import simplefilter
-from tqdm import tqdm
 
-from . import scoring as sc
+from . import scoring as sco
 from . import plotting as pl
 from . import integration as it
 from . import tools as tl
@@ -37,7 +45,7 @@ def calculate_dissim(sample1, sample2):
 
     dissims = {}
     for lr in set(sample1.keys()).intersection(set(sample2.keys())):
-        dissims[lr] = sc.dissimilarity_score(sample1[lr], sample2[lr])
+        dissims[lr] = sco.dissimilarity_score(sample1[lr], sample2[lr])
 
     return dissims
 
@@ -132,16 +140,16 @@ def get_lrs_per_celltype(sample, sender, reciever):
     return lr_props
 
 
-def lr_grouping(sample, n_clusters=0):
+def lr_grouping(sample, n_clusters=0, clustering="KMeans"):
     """Groups and ranks LR pairs using their clusters and dissimilarities.
 
-        Args:
-            sample (dict): A dictionary containing LR matrices.
-            clusters (pd.DataFrame): A DataFrame with the cluster assignments for each
-            sample.
+    Args:
+        sample (dict): A dictionary containing LR matrices.
+        clusters (pd.DataFrame): A DataFrame with the cluster assignments for each
+        sample.
 
-        Returns:
-            final_clusters (2-dataframes): LR-pairs as rownames and its Cluster
+    Returns:
+        final_clusters (2-dataframes): LR-pairs as rownames and its Cluster
     """
 
     one_interaction_sample = {}
@@ -173,13 +181,15 @@ def lr_grouping(sample, n_clusters=0):
         with tqdm(total=len(sample), desc="Processing") as pbar:
             for key1, df1 in sample.items():
                 for key2, df2 in sample.items():
-                    result = sc.dissimilarity_score(
+                    result = sco.dissimilarity_score(
                         df1, df2, lmbda=0.5, only_non_zero=True
                     )
                     # Store the result in the result_df
                     result_df.loc[key1, key2] = result
                 pbar.update(1)
-        final_clusters_multiple = lr_clustering(result_df, sample, n_clusters)
+        final_clusters_multiple = lr_clustering(
+            result_df, sample, n_clusters, clustering
+        )
 
     if one_interaction_sample is not None:
         # Initialize an empty dataframe to store the results
@@ -191,7 +201,7 @@ def lr_grouping(sample, n_clusters=0):
         with tqdm(total=len(one_interaction_sample), desc="Processing") as pbar:
             for key1, df1 in one_interaction_sample.items():
                 for key2, df2 in one_interaction_sample.items():
-                    result = sc.dissimilarity_score(
+                    result = sco.dissimilarity_score(
                         df1, df2, lmbda=0.5, only_non_zero=True
                     )
 
@@ -215,14 +225,13 @@ def lr_grouping(sample, n_clusters=0):
     return final_clusters
 
 
-def lr_clustering(result_df, sample, n_clusters=0, show_plots=True):
+def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
     """Clusters LR pairs based on LR matrix similarities.
 
     Args:
         sample (dict): A dictionary containing LR matrices.
         n_clusters (int) (optional): The desired number of clusters. If 0, the optimal
         number is determined using silhouette analysis. Defaults to 0.
-        show_plots (bool) (optional): Whether to show plots or not. Defaults to True.
 
     Returns:
         pd.DataFrame: A DataFrame with the cluster assignments for each sample.
@@ -256,28 +265,45 @@ def lr_clustering(result_df, sample, n_clusters=0, show_plots=True):
         # Number of clusters (adjust as needed)
         n_clusters = n_clusters
 
-        # Perform hierarchical clustering
-        model = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
-        clusters = model.fit_predict(pc_com_dist_matrix)
+        if clustering == "Hierarchial":
+            # Perform hierarchical clustering
+            model = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
+            clusters = model.fit_predict(pc_com_dist_matrix)
+        if clustering == "KMeans":
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            clusters = kmeans.fit_predict(pc_com_dist_matrix)
 
     if n_clusters == 0:
+        if clustering == "Hierarchial":
+            # Evaluate silhouette score for different numbers of clusters
+            silhouette_scores = []
+            for n_clusters in range(2, 11):
+                clusterer = AgglomerativeClustering(
+                    n_clusters=n_clusters, linkage="ward"
+                )
+                cluster_labels = clusterer.fit_predict(pc_com_dist_matrix)
+                silhouette_avg = silhouette_score(pc_com_dist_matrix, cluster_labels)
+                silhouette_scores.append(silhouette_avg)
+            plt.silhouette_scores_plot(silhouette_scores)
+            # Perform hierarchical clustering
+            model = AgglomerativeClustering(
+                # Add 2 to account for starting with k=2
+                n_clusters=np.argmax(silhouette_scores) + 2,
+                linkage="ward",
+            )  # as indexing starts from 0
+            clusters = model.fit_predict(pc_com_dist_matrix)
 
-        # Evaluate silhouette score for different numbers of clusters
-        silhouette_scores = []
-        for n_clusters in range(2, 11):
-            clusterer = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
-            cluster_labels = clusterer.fit_predict(pc_com_dist_matrix)
-            silhouette_avg = silhouette_score(pc_com_dist_matrix, cluster_labels)
-            silhouette_scores.append(silhouette_avg)
-
-        if show_plots:
-            pl.silhouette_scores_plot(silhouette_scores)
-
-        # Perform hierarchical clustering
-        model = AgglomerativeClustering(
-            n_clusters=np.argmax(silhouette_scores) + 2, linkage="ward"
-        )  # as indexing starts from 0
-        clusters = model.fit_predict(pc_com_dist_matrix)
+        if clustering == "KMeans":
+            # Find optimal numer of clusters Davies-Bouldin index
+            db_scores = []
+            for k in range(2, 11):
+                kmeans = KMeans(n_clusters=k, random_state=42)
+                labels = kmeans.fit_predict(pc_com_dist_matrix)
+                db_scores.append(davies_bouldin_score(pc_com_dist_matrix, labels))
+            # Add 2 to account for starting with k=2
+            optimal_clusters = np.argmin(db_scores) + 2
+            kmeans = KMeans(n_clusters=optimal_clusters, random_state=42)
+            clusters = kmeans.fit_predict(pc_com_dist_matrix)
 
     clusters = pd.DataFrame(clusters)
     clusters.index = sample.keys()
@@ -303,7 +329,6 @@ def lr_clustering(result_df, sample, n_clusters=0, show_plots=True):
     final_clusters = final_clusters.rename(columns={0: "LRs"})
     final_clusters = final_clusters[["LRs", "Cluster"]]
     final_clusters.set_index("LRs", inplace=True)
-
     return final_clusters
 
 
@@ -355,10 +380,100 @@ def calculate_cluster_interactions(sample):
     return cluster_dict
 
 
+def lr_interaction_clustering(list_anndata, clustering="KMeans"):
+    """Clustering of spatial LR interaction scores on AnnData objects.
+
+    Args:
+        list_anndata (list): A list of AnnData objects.
+        clustering (str) (optional): The clustering method to use. Defaults to 'KMeans'.
+    """
+    obj_LR = []
+    for i in range(0, len(list_anndata)):
+        LR = pd.DataFrame(list_anndata[i].obsm["lr_scores"])
+        LR.columns = list(list_anndata[i].uns["lr_summary"].index)
+        LR.index = list_anndata[i].obs.index
+        obj_LR.append(LR)
+
+    for i in range(0, len(list_anndata)):
+
+        if clustering == "Hierarchial":
+            for n_clusters in range(2, 11):
+                # Find optimal numer of clusters Silhouette
+                clusterer = AgglomerativeClustering(
+                    n_clusters=n_clusters, linkage="ward"
+                )
+                cluster_labels = clusterer.fit_predict(obj_LR[i])
+                silhouette_avg = silhouette_score(obj_LR[i], cluster_labels)
+            # Perform hierarchical clustering
+            model = AgglomerativeClustering(
+                n_clusters=np.argmax(silhouette_avg) + 2, linkage="ward"
+            )
+            obj_LR[i]["Cluster"] = model.fit_predict(obj_LR[i])
+
+        if clustering == "KMeans":
+            # Find optimal numer of clusters Davies-Bouldin index
+            db_scores = []
+            for k in range(2, 11):
+                kmeans = KMeans(n_clusters=k, random_state=42)
+                labels = kmeans.fit_predict(obj_LR[i])
+                db_scores.append(davies_bouldin_score(obj_LR[i], labels))
+            # Add 2 to account for starting with k=2
+            optimal_clusters = np.argmin(db_scores) + 2
+            print(f"The optimal number of clusters is: {optimal_clusters}")
+            kmeans = KMeans(n_clusters=optimal_clusters, random_state=42)
+            obj_LR[i]["Cluster"] = kmeans.fit_predict(obj_LR[i])
+
+        # Perform UMAP
+        umap_model = umap.UMAP(n_components=2, random_state=42)
+        umap_result = umap_model.fit_transform(obj_LR[i].drop("Cluster", axis=1))
+
+        # Plot the UMAP results colored by cluster
+        plt.scatter(
+            umap_result[:, 0], umap_result[:, 1], c=obj_LR[i]["Cluster"], cmap="viridis"
+        )
+        plt.title("UMAP Visualization with Clusters")
+        plt.colorbar()
+        plt.show()
+
+        list_anndata[i].obs["LR_Cluster"] = obj_LR[i]["Cluster"].astype("object")
+        barplot_data = (
+            list_anndata[i]
+            .obs.groupby(["cell_type", "LR_Cluster"])
+            .size()
+            .reset_index(name="Count")
+        )
+
+        # Calculate proportions for each category in col2
+        proportions = (
+            barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
+            .sum()
+            .unstack("LR_Cluster")
+        )
+        proportions = proportions.div(proportions.sum(axis=1), axis=0)
+
+        # Create a stacked barplot
+        sns.set(style="whitegrid")
+        proportions.plot(kind="bar", stacked=True, colormap="viridis")
+
+        # Add labels and title
+        plt.xlabel("Categories in col2")
+        plt.ylabel("Proportion of col1")
+        plt.title("Stacked Barplot of Proportions")
+
+        # Show the plot
+        plt.show()
+
+        # Show spatial plot
+        list_anndata[i].obs["LR_Cluster"] = (
+            list_anndata[i].obs["LR_Cluster"].astype("int64")
+        )
+        sc.pl.spatial(list_anndata[i], color="LR_Cluster", cmap="viridis")
+
+
 def run_gsea(
     sample,
     organism="human",
-    gene_sets=["MSigDB_Hallmark_2020", "KEGG_2021_Human"],
+    gene_sets=None,
     show_plots=True,
 ):
     """Runs GSEA analysis on a sample.
@@ -366,8 +481,8 @@ def run_gsea(
     Args:
         sample (dict): A dictionary containing LR matrices.
         organism (str) (optional): The organism to use. Defaults to 'human'.
-        gene_sets (list) (optional): The gene sets to use. Defaults to
-        ['MSigDB_Hallmark_2020', 'KEGG_2021_Human'].
+        gene_sets (list) (optional): The gene sets to use for gseapy analysis.
+        Defaults to pre-run analysis run on mouse ConnectomeDB2020.
         show_plots (bool) (optional): Whether to show plots or not. Defaults to True.
 
     Returns:
@@ -383,37 +498,44 @@ def run_gsea(
 
     gene_list = list(gene_list)
 
-    enr = gp.enrichr(
-        gene_list=gene_list,  # or "./tests/data/gene_list.txt",
-        gene_sets=gene_sets,
-        organism=organism,  # don't forget to set organism to the one you desired! e.g. Yeast
-        outdir=None,  # don't write to disk
-    )
+    if gene_sets is None:
+        database = pd.read_csv("")
+        lrs = [lr.lower() for lr in list(sample.keys())]
 
-    if show_plots:
-        ax = dotplot(
-            enr.results,
-            column="Adjusted P-value",
-            x="Gene_set",  # set x axis, so you could do a multi-sample/library comparsion
-            size=10,
-            top_term=5,
-            figsize=(3, 5),
-            xticklabels_rot=45,  # rotate xtick labels
-            show_ring=True,  # set to False to revmove outer ring
-            marker="o",
+        enr.results = database[database["LRI"].isin(lrs)]
+
+    else:
+        enr = gp.enrichr(
+            gene_list=gene_list,  # or "./tests/data/gene_list.txt",
+            gene_sets=gene_sets,
+            organism=organism,  # don't forget to set organism to the one you desired! e.g. Yeast
+            outdir=None,  # don't write to disk
         )
 
-        ax = barplot(
-            enr.results,
-            column="Adjusted P-value",
-            group="Gene_set",  # set group, so you could do a multi-sample/library comparsion
-            size=10,
-            top_term=5,
-            figsize=(3, 5),
-        )
+        if show_plots:
+            ax = dotplot(
+                enr.results,
+                column="Adjusted P-value",
+                x="Gene_set",  # set x axis, so you could do a multi-sample/library comparsion
+                size=10,
+                top_term=5,
+                figsize=(3, 5),
+                xticklabels_rot=45,  # rotate xtick labels
+                show_ring=True,  # set to False to revmove outer ring
+                marker="o",
+            )
 
-        ax = dotplot(enr.res2d, cmap="viridis_r", size=10, figsize=(3, 5))
+            ax = barplot(
+                enr.results,
+                column="Adjusted P-value",
+                group="Gene_set",  # set group, so you could do a multi-sample/library comparsion
+                size=10,
+                top_term=5,
+                figsize=(3, 5),
+            )
 
-        ax = barplot(enr.res2d, figsize=(4, 5), color="darkred")
+            ax = dotplot(enr.res2d, cmap="viridis_r", size=10, figsize=(3, 5))
 
-    return enr.results
+            ax = barplot(enr.res2d, figsize=(4, 5), color="darkred")
+
+        return enr.results
