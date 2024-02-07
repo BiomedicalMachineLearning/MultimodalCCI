@@ -8,7 +8,7 @@ import matplotlib.cm as cm
 
 
 def hex2rgb(c):
-    return tuple(int(c[i : i + 2], 16) / 256.0 for i in (1, 3, 5))
+    return tuple(int(c[i: i + 2], 16) / 256.0 for i in (1, 3, 5))
 
 
 def polar2xy(r, theta):
@@ -69,7 +69,7 @@ def ChordArc(
         Path.CURVE4,
     ]
 
-    if ax == None:
+    if ax is None:
         return verts, codes
     else:
         path = Path(verts, codes)
@@ -107,7 +107,7 @@ def selfChordArc(start=0, end=60, radius=1.0, chordwidth=0.7, ax=None, color=(1,
         Path.CURVE4,
     ]
 
-    if ax == None:
+    if ax is None:
         return verts, codes
     else:
         path = Path(verts, codes)
@@ -141,7 +141,8 @@ def chordDiagram(X, ax, colors=None, width=0.1, pad=2, chordwidth=0.7, lim=1.1):
     diam = 1.8
 
     if colors is None:
-        # use d3.js category10 https://github.com/d3/d3-3.x-api-reference/blob/master/Ordinal-Scales.md#category10
+        # use d3.js category10
+        # https://github.com/d3/d3-3.x-api-reference/blob/master/Ordinal-Scales.md#category10
         colors = [
             "#1f77b4",
             "#ff7f0e",
@@ -156,7 +157,7 @@ def chordDiagram(X, ax, colors=None, width=0.1, pad=2, chordwidth=0.7, lim=1.1):
         ]
         if len(x) > 10:
             print("x is too large! Use x smaller than 10")
-    if type(colors[0]) == str:
+    if isinstance(colors[0], str):
         colors = [hex2rgb(colors[i]) for i in range(len(x))]
 
     # find position for each start and end
@@ -181,7 +182,11 @@ def chordDiagram(X, ax, colors=None, width=0.1, pad=2, chordwidth=0.7, lim=1.1):
             )
             + (angle,)
         )
+
+        x[x == 0] = 1
         z = (X[i, :] / x[i].astype(float)) * (end - start)
+        z[np.isnan(z)] = 0
+
         ids = np.argsort(z)
         z0 = start
         for j in ids:
