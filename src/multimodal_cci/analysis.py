@@ -9,6 +9,7 @@ import statistics
 import subprocess
 import umap
 import matplotlib.pyplot as plt
+import importlib.resources
 
 from matplotlib import pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
@@ -50,6 +51,21 @@ def calculate_dissim(sample1, sample2):
     return dissims
 
 
+def get_network_diff(m1, m2):
+    """Calculates the difference between two networks.
+
+    Args:
+        m1, m2 (pd.DataFrame): Two matrices to compare (as DataFrames).
+
+    Returns:
+        pd.DataFrame: A DataFrame of the differences between the two matrices.
+    """
+
+    dfs = tl.align_dataframes(m1, m2)
+
+    return dfs[0] - dfs[1]
+
+
 def perm_test(m1, m2, num_perms=100000):
     """Performs permutation testing to assess the significance of a dissimilarity score.
 
@@ -62,13 +78,9 @@ def perm_test(m1, m2, num_perms=100000):
         pd.DataFrame: A DataFrame of p-values for each element in the matrices.
     """
 
-    dfs = tl.align_dataframes(m1, m2)
+    diff = abs(get_network_diff(m1, m2))
 
-    matrix1 = dfs[0].values
-    matrix2 = dfs[1].values
-
-    result_matrix1 = dfs[0].values.copy()
-    result_matrix2 = dfs[1].values.copy()
+    result_matrix = diff.values.copy()
 
     def permtr(x):
         return np.apply_along_axis(
@@ -78,17 +90,13 @@ def perm_test(m1, m2, num_perms=100000):
         )
 
     # Permute and test for matrix1
-    perm1 = [permtr(matrix2) for _ in range(num_perms)]
-    sums1 = np.sum([result_matrix1 < perm_result for perm_result in perm1], axis=0)
-
-    # Permute and test for matrix2
-    perm2 = [permtr(matrix1) for _ in range(num_perms)]
-    sums2 = np.sum([result_matrix2 < perm_result for perm_result in perm2], axis=0)
+    perm = [permtr(diff) for _ in range(num_perms)]
+    sums = np.sum([result_matrix < perm_result for perm_result in perm], axis=0)
 
     # Calculate p-values
-    p_vals = (sums1 + sums2) / (2 * num_perms)
+    p_vals = sums / num_perms
 
-    p_vals = pd.DataFrame(p_vals, index=dfs[0].index, columns=dfs[1].columns)
+    p_vals = pd.DataFrame(p_vals, index=diff.index, columns=diff.columns)
 
     return p_vals
 
@@ -380,12 +388,18 @@ def calculate_cluster_interactions(sample):
     return cluster_dict
 
 
-def lr_interaction_clustering(list_anndata, clustering="KMeans"):
+def lr_interaction_clustering(
+        list_anndata,
+        clustering="KMeans",
+        cmap="viridis",
+        spot_size=None):
     """Clustering of spatial LR interaction scores on AnnData objects.
 
     Args:
         list_anndata (list): A list of AnnData objects.
         clustering (str) (optional): The clustering method to use. Defaults to 'KMeans'.
+        cmap (str) (optional): The colormap to use for the spatial plots. Defaults to 'viridis'.
+        spot_size (int) (optional): The size of the spots in the spatial plots. Defaults to None.
     """
     obj_LR = []
     for i in range(0, len(list_anndata)):
@@ -429,10 +443,12 @@ def lr_interaction_clustering(list_anndata, clustering="KMeans"):
 
         # Plot the UMAP results colored by cluster
         plt.scatter(
-            umap_result[:, 0], umap_result[:, 1], c=obj_LR[i]["Cluster"], cmap="viridis"
+            umap_result[:, 0], umap_result[:, 1], c=obj_LR[i]["Cluster"], cmap=cmap
         )
         plt.title("UMAP Visualization with Clusters")
-        plt.colorbar()
+        plt.xticks([])  # Hide x-axis tick marks and labels
+        plt.yticks([])  # Hide y-axis tick marks and labels
+        plt.axis('off')  # Hide the border
         plt.show()
 
         list_anndata[i].obs["LR_Cluster"] = obj_LR[i]["Cluster"].astype("object")
@@ -453,12 +469,15 @@ def lr_interaction_clustering(list_anndata, clustering="KMeans"):
 
         # Create a stacked barplot
         sns.set(style="whitegrid")
-        proportions.plot(kind="bar", stacked=True, colormap="viridis")
+        proportions.plot(kind="bar", stacked=True, colormap=cmap)
 
         # Add labels and title
         plt.xlabel("Categories in col2")
         plt.ylabel("Proportion of col1")
         plt.title("Stacked Barplot of Proportions")
+
+        # Remove the legend
+        plt.legend().remove()
 
         # Show the plot
         plt.show()
@@ -467,7 +486,13 @@ def lr_interaction_clustering(list_anndata, clustering="KMeans"):
         list_anndata[i].obs["LR_Cluster"] = (
             list_anndata[i].obs["LR_Cluster"].astype("int64")
         )
-        sc.pl.spatial(list_anndata[i], color="LR_Cluster", cmap="viridis")
+        sc.pl.spatial(
+            list_anndata[i],
+            color="LR_Cluster",
+            cmap=cmap,
+            spot_size=spot_size,
+            legend_loc=None  # Remove the legend
+        )
 
 
 def run_gsea(
@@ -498,44 +523,80 @@ def run_gsea(
 
     gene_list = list(gene_list)
 
-    if gene_sets is None:
-        database = pd.read_csv("")
-        lrs = [lr.lower() for lr in list(sample.keys())]
+    # if gene_sets is None:
+    #     path = importlib.resources.path('multimodal_cci.databases', 'connectome.csv')
+    #     database = pd.read_csv(path)
 
-        enr.results = database[database["LRI"].isin(lrs)]
+    #     lrs = [lr.replace("_", ":") for lr in list(sample.keys())]
 
-    else:
-        enr = gp.enrichr(
-            gene_list=gene_list,  # or "./tests/data/gene_list.txt",
-            gene_sets=gene_sets,
-            organism=organism,  # don't forget to set organism to the one you desired! e.g. Yeast
-            outdir=None,  # don't write to disk
+    #     go_terms = []
+    #     for lr in lrs:
+    #         terms_string = database[database["LRI"] == lr]["GO_Terms"]
+    #         terms_to_add = terms_string.values[0].split(",")
+    #         terms_to_add = list(set(terms_to_add))
+    #         terms_to_add = [term.replace(" ", "") for term in terms_to_add]
+    #         go_terms = go_terms + terms_to_add
+
+    #     term_counts = {}
+
+    #     for term in go_terms:
+    #         term_counts[term] = term_counts.get(term, 0) + 1
+
+    #     # Sort the GO terms by count in descending order
+    #     sorted_terms = sorted(term_counts.items(), key=lambda x: x[1], reverse=True)
+
+    #     # Extract top n terms and their counts
+    #     top_terms = [term[0] for term in sorted_terms[:n]]
+    #     top_counts = [term[1] for term in sorted_terms[:n]]
+
+    #     # Plot the horizontal bar plot
+    #     plt.figure(figsize=(10, 6))
+    #     plt.barh(range(n), top_counts, color='skyblue')
+    #     plt.yticks(range(n), top_terms)
+    #     plt.xlabel('Count')
+    #     plt.title(f'Top {n} GO Terms')
+    #     plt.gca().invert_yaxis()  # Invert y-axis to have the highest count at the top
+    #     plt.show()
+
+    #     return go_terms
+
+    # else:
+    enr = gp.enrichr(
+        gene_list=gene_list,
+        gene_sets=gene_sets,
+        organism=organism,
+        outdir=None,
+    )
+
+    if show_plots:
+
+        colours = list(plt.cm.Dark2.colors)
+        colour_dict = {gene_set: colours[i] for i, gene_set in enumerate(gene_sets)}
+
+        ax = dotplot(
+            enr.results,
+            column="Adjusted P-value",
+            x="Gene_set",
+            size=10,
+            top_term=5,
+            figsize=(3, 5),
+            xticklabels_rot=45,
+            show_ring=True,
+            marker="o",
         )
 
-        if show_plots:
-            ax = dotplot(
-                enr.results,
-                column="Adjusted P-value",
-                x="Gene_set",  # set x axis, so you could do a multi-sample/library comparsion
-                size=10,
-                top_term=5,
-                figsize=(3, 5),
-                xticklabels_rot=45,  # rotate xtick labels
-                show_ring=True,  # set to False to revmove outer ring
-                marker="o",
-            )
+        ax = barplot(
+            enr.results,
+            column="Adjusted P-value",
+            group="Gene_set",
+            size=10,
+            top_term=5,
+            figsize=(3, 5),
+            color=colour_dict
+        )
 
-            ax = barplot(
-                enr.results,
-                column="Adjusted P-value",
-                group="Gene_set",  # set group, so you could do a multi-sample/library comparsion
-                size=10,
-                top_term=5,
-                figsize=(3, 5),
-            )
+        # ax = dotplot(enr.res2d, cmap="viridis_r", size=10, figsize=(3, 5))
 
-            ax = dotplot(enr.res2d, cmap="viridis_r", size=10, figsize=(3, 5))
+        # ax = barplot(enr.res2d, figsize=(4, 5), color="darkred")
 
-            ax = barplot(enr.res2d, figsize=(4, 5), color="darkred")
-
-        return enr.results
+    return enr.results

@@ -47,10 +47,12 @@ def network_plot(
 
     plt.figure(figsize=figsize)
 
+    network_abs = abs(network)
+
     if normalise:
-        network = network / network.sum().sum()
-    network = network.astype(float)
-    G_network = nx.from_pandas_adjacency(network, create_using=nx.DiGraph)
+        network_abs = network_abs / network_abs.sum().sum()
+    network_abs = network.astype(float)
+    G_network = nx.from_pandas_adjacency(network_abs, create_using=nx.DiGraph)
     pos = nx.circular_layout(G_network)
     weights = nx.get_edge_attributes(G_network, "weight")
 
@@ -75,21 +77,51 @@ def network_plot(
 
     if p_vals is None:
         # Create a non-significant matrix
-        p_vals = network.replace(network.values, 1, inplace=False)
+        p_vals = network_abs.replace(network_abs.values, 1, inplace=False)
+    else:
+        # Prevent removal of pvals of 0
+        p_vals[p_vals == 0] = 1e-300
 
     # Get edges that are significant
     G_p_vals = nx.from_pandas_adjacency(p_vals, create_using=nx.DiGraph)
+    G_network_updown = nx.from_pandas_adjacency(network, create_using=nx.DiGraph)
+
     non_sig = [
         (u, v) for (u, v, d) in G_p_vals.edges(data=True) if d["weight"] > p_val_cutoff
     ]
     non_sig = [edge for edge in non_sig if edge in weights.keys()]
-    sig = [
-        (u, v) for (u, v, d) in G_p_vals.edges(data=True) if d["weight"] <= p_val_cutoff
-    ]
-    sig = [edge for edge in sig if edge in weights.keys()]
+    sig_up = [(u, v) for (u, v, d) in G_p_vals.edges(data=True) if d["weight"]
+              <= p_val_cutoff and G_network_updown[u][v]["weight"] > 0]
+    sig_up = [edge for edge in sig_up if edge in weights.keys()]
 
-    edge_thickness_non_sig = [weights[edge] * edge_weight for edge in non_sig]
-    edge_thickness_sig = [weights[edge] * edge_weight for edge in sig]
+    sig_down = [
+        (u,
+         v) for (
+            u,
+            v,
+            d) in G_p_vals.edges(
+            data=True) if d["weight"] <= p_val_cutoff and G_network_updown[u][v]["weight"] < 0]
+    sig_down = [edge for edge in sig_down if edge in weights.keys()]
+
+    edge_thickness_non_sig = []
+    edge_thickness_sig_up = []
+    edge_thickness_sig_down = []
+
+    for edge in weights.keys():
+        if edge in non_sig:
+            edge_thickness_non_sig.append(weights[edge] * edge_weight)
+        else:
+            edge_thickness_non_sig.append(0)
+
+        if edge in sig_up:
+            edge_thickness_sig_up.append(weights[edge] * edge_weight)
+        else:
+            edge_thickness_sig_up.append(0)
+
+        if edge in sig_down:
+            edge_thickness_sig_down.append(weights[edge] * edge_weight)
+        else:
+            edge_thickness_sig_down.append(0)
 
     nx.draw_networkx_nodes(
         G_network,
@@ -107,7 +139,7 @@ def network_plot(
         arrows=True,
         arrowstyle="->",
         arrowsize=arrowsize,
-        edgelist=non_sig,
+        # edgelist=non_sig,
     )
 
     nx.draw_networkx_edges(
@@ -115,12 +147,25 @@ def network_plot(
         pos,
         node_size=node_size * 2,
         connectionstyle="arc3,rad=0.08",
-        width=edge_thickness_sig,
+        width=edge_thickness_sig_up,
         arrows=True,
         arrowstyle="->",
-        edgelist=sig,
+        # edgelist=sig_up,
         arrowsize=arrowsize,
         edge_color="purple",
+    )
+
+    nx.draw_networkx_edges(
+        G_network,
+        pos,
+        node_size=node_size * 2,
+        connectionstyle="arc3,rad=0.08",
+        width=edge_thickness_sig_down,
+        arrows=True,
+        arrowstyle="->",
+        # edgelist=sig_down,
+        arrowsize=arrowsize,
+        edge_color="green",
     )
 
     edge_labels = nx.get_edge_attributes(G_p_vals, "weight")
@@ -135,7 +180,7 @@ def network_plot(
         else:
             edge_labels[key] = round(value, 3)
 
-    def offset(d, pos, dist=0.05, loop_shift=0.1):
+    def offset(d, pos, dist=0.05, loop_shift=0.22):
         for (u, v), obj in d.items():
             if u != v:
                 par = dist * (pos[v] - pos[u])
@@ -154,6 +199,7 @@ def network_plot(
         (x, [y[0] * 1.4 * node_label_dist, y[1] * (1.25 + 0.05) * node_label_dist])
         for x, y in pos.items()
     )
+
     nx.draw_networkx_labels(
         G_network,
         pos,
