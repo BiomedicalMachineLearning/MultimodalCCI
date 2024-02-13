@@ -18,6 +18,7 @@ def network_plot(
     figsize=(10, 8),
     arrowsize=20,
     node_label_dist=1,
+    p_val_text_size=10,
     cmap=None,
 ):
     """Plots a network with optional edge significance highlighting and node
@@ -70,10 +71,13 @@ def network_plot(
         cmap = LinearSegmentedColormap.from_list("custom_cmap", cmap_colors)
 
     # Map node colors to the in-degree and out-degree difference
-    node_colors = [
-        cmap(int(np.interp(in_out_diff[node], color_scale, range(256))))
-        for node in G_network.nodes
-    ]
+    if sum(in_out_diff.values()) == 0:
+        node_colors = ['grey' for node in G_network.nodes]
+    else:
+        node_colors = [
+            cmap(int(np.interp(in_out_diff[node], color_scale, range(256))))
+            for node in G_network.nodes
+        ]
 
     if p_vals is None:
         # Create a non-significant matrix
@@ -90,17 +94,19 @@ def network_plot(
         (u, v) for (u, v, d) in G_p_vals.edges(data=True) if d["weight"] > p_val_cutoff
     ]
     non_sig = [edge for edge in non_sig if edge in weights.keys()]
-    sig_up = [(u, v) for (u, v, d) in G_p_vals.edges(data=True) if d["weight"]
-              <= p_val_cutoff and G_network_updown[u][v]["weight"] > 0]
+    sig_up = [
+        (u, v) for (u, v, d) in G_p_vals.edges(data=True)
+        if d["weight"] <= p_val_cutoff
+        and u in G_network_updown
+        and v in G_network_updown[u]
+        and G_network_updown[u][v]["weight"] > 0]
     sig_up = [edge for edge in sig_up if edge in weights.keys()]
 
     sig_down = [
-        (u,
-         v) for (
-            u,
-            v,
-            d) in G_p_vals.edges(
-            data=True) if d["weight"] <= p_val_cutoff and G_network_updown[u][v]["weight"] < 0]
+        (u, v) for (u, v, d) in G_p_vals.edges(data=True) if d["weight"] <= p_val_cutoff
+        and u in G_network_updown
+        and v in G_network_updown[u]
+        and G_network_updown[u][v]["weight"] < 0]
     sig_down = [edge for edge in sig_down if edge in weights.keys()]
 
     edge_thickness_non_sig = []
@@ -191,7 +197,8 @@ def network_plot(
                 x, y = obj.get_position()
                 obj.set_position((x, y + loop_shift))
 
-    d = nx.draw_networkx_edge_labels(G_network, pos, edge_labels)
+    d = nx.draw_networkx_edge_labels(
+        G_network, pos, edge_labels, font_size=p_val_text_size)
 
     offset(d, pos)
 
