@@ -25,8 +25,8 @@
       <b>Documentation</b>
     </td>
     <td>
-      <a href="https://.readthedocs.io/en/latest/">
-      <img src="https://readthedocs.org/projects//badge/?version=latest" alt="Documentation Status">
+      <a href="https://multimodalcci.readthedocs/en/latest/">
+      <img src="https://multimodalcci.readthedocs.org/projects//badge/?version=latest" alt="Documentation Status">
       </a>
     </td>
   </tr>

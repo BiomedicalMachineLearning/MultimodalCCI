@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import scanpy as sc
 
 
 def align_dataframes(m1, m2):
@@ -26,7 +27,49 @@ def align_dataframes(m1, m2):
     return m1, m2
 
 
-def read_cellphone_db(path):
+def rename_celltypes(sample, replacements):
+    """Renames cell types in a sample.
+
+    Args:
+        sample (dict): A dict of LR matrices.
+        replacements (dict): A dictionary of replacements, where the keys are the old
+            cell type names and the values are the new cell type names.
+
+    Returns:
+        dict: A dict of LR matrices with the cell type names replaced.
+    """
+
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
+
+    renamed = sample.copy()
+    for i in range(len(renamed)):
+        for lr_pair in renamed[i].keys():
+            renamed[i][lr_pair].rename(
+                index=replacements,
+                columns=replacements,
+                inplace=True)
+
+    return renamed
+
+
+def read_stLearn(path):
+    """Reads a stLearn ligand-receptor analysis output and converts it to a dictionary
+    of LR matrices that can be used with the multimodal cci functions.
+
+    Args:
+        path (str): The path to the stLearn ligand-receptor analysis output.
+
+    Returns:
+        dict: A dictionary of LR matrices.
+    """
+
+    adata = sc.read_h5ad(path)
+
+    return adata.uns['per_lr_cci_cell_type']
+
+
+def read_CellPhoneDB(path):
     """Reads a CellPhoneDB interaction scores txt file and converts it to a dictionary
     of LR matrices that can be used with the multimodal cci functions.
 
@@ -57,8 +100,8 @@ def read_cellphone_db(path):
     return sample
 
 
-def read_squidpy(result):
-    """Reads a squidpy ligand-receptor analysis output and converts it to a dictionary
+def read_Squidpy(result):
+    """Reads a Squidpy ligand-receptor analysis output and converts it to a dictionary
     of LR matrices that can be used with the multimodal cci functions.
 
     Args:
@@ -98,7 +141,7 @@ def read_squidpy(result):
     return lr_dict
 
 
-def read_cellchat(path):
+def read_CellChat(path):
     """Reads a CellChat ligand-receptor analysis output (cellchat@dr) and converts it to
     a dictionary of LR matrices that can be used with the multimodal cci functions.
 
@@ -131,9 +174,9 @@ def read_cellchat(path):
     return lr_dict
 
 
-def read_natmi(path):
-    """Reads a NATMI ligand-receptor analysis output (Edges_lrc2p.csv) and converts it to
-    a dictionary of LR matrices that can be used with the multimodal cci functions.
+def read_NATMI(path):
+    """Reads a NATMI ligand-receptor analysis output (Edges_lrc2p.csv) and converts it
+    to a dictionary of LR matrices that can be used with the multimodal cci functions.
 
     Args:
         path (str): The path to Edges_lrc2p.csv.

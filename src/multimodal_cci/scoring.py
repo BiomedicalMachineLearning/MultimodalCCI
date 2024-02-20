@@ -4,7 +4,13 @@ from . import tools as tl
 
 
 def dissimilarity_score(
-    m1, m2, lmbda=0.5, normalise=False, binary=False, trim=False, only_non_zero=False
+    m1,
+    m2,
+    lmbda=0.5,
+    normalise=False,
+    binary=False,
+    trim=False,
+    only_non_zero=False
 ):
     """Calculates a dissimilarity score between two matrices.
 

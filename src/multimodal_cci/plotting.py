@@ -46,6 +46,11 @@ def network_plot(
         coloring. Defaults to None.
     """
 
+    if isinstance(network, dict):
+        raise ValueError(
+            "Input should be a single matrix, not a sample. You may need to run \
+                calculate_overall_interactions() first or select an LR pair.")
+
     plt.figure(figsize=figsize)
 
     network_abs = abs(network)
@@ -71,7 +76,7 @@ def network_plot(
         cmap = LinearSegmentedColormap.from_list("custom_cmap", cmap_colors)
 
     # Map node colors to the in-degree and out-degree difference
-    if sum(in_out_diff.values()) == 0:
+    if sum(abs(value) for value in in_out_diff.values()) == 0:
         node_colors = ['grey' for node in G_network.nodes]
     else:
         node_colors = [
@@ -247,6 +252,11 @@ def chord_plot(
         label_size (int): Font size of the labels. Defaults to None.
     """
 
+    if isinstance(network, dict):
+        raise ValueError(
+            "Input should be a single matrix, not a sample. You may need to run \
+                calculate_overall_interactions() first or select an LR pair.")
+
     network = network.transpose()
     fig = plt.figure(figsize=(8, 8))
 
@@ -334,6 +344,8 @@ def lrs_per_celltype(sample, sender, receiver, n=15):
         n (int): Number of LR pairs to plot. If None, plot all LR pairs. Defaults to
         15.
     """
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
 
     pairs = an.get_lrs_per_celltype(sample, sender, receiver)
     keys = list(pairs.keys())[:n]

@@ -44,6 +44,9 @@ def calculate_dissim(sample1, sample2):
         dissimilarity scores.
     """
 
+    if not (isinstance(sample1, dict) and isinstance(sample2, dict)):
+        raise ValueError("The sample must be a dict of LR matrices.")
+
     dissims = {}
     for lr in set(sample1.keys()).intersection(set(sample2.keys())):
         dissims[lr] = sco.dissimilarity_score(sample1[lr], sample2[lr])
@@ -114,6 +117,9 @@ def get_lrs_per_celltype(sample, sender, reciever):
         dict: A list of LR pairs and proportion of its weighting.
     """
 
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
+
     names = []
 
     sample = {key: df.loc[[sender]] for key, df in sample.items() if sender in df.index}
@@ -159,6 +165,9 @@ def lr_grouping(sample, n_clusters=0, clustering="KMeans"):
     Returns:
         final_clusters (2-dataframes): LR-pairs as rownames and its Cluster
     """
+
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
 
     one_interaction_sample = {}
 
@@ -237,6 +246,7 @@ def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
     """Clusters LR pairs based on LR matrix similarities.
 
     Args:
+        result_df (pd.DataFrame): A DataFrame containing dissimilarity scores for LRs
         sample (dict): A dictionary containing LR matrices.
         n_clusters (int) (optional): The desired number of clusters. If 0, the optimal
         number is determined using silhouette analysis. Defaults to 0.
@@ -244,6 +254,7 @@ def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
     Returns:
         pd.DataFrame: A DataFrame with the cluster assignments for each sample.
     """
+
     # Compute distance matrix from disimilarity matrix
     result_df = result_df.astype("float64")
     result_df = result_df.fillna(0)
@@ -342,7 +353,7 @@ def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
 
 def lr_interaction_clustering(
         list_anndata,
-        clustering="kmeans",
+        clustering="leiden",
         cmap="jet",
         spot_size=None):
     """Clustering of spatial LR interaction scores on AnnData objects.
@@ -353,6 +364,7 @@ def lr_interaction_clustering(
         cmap (str) (optional): The colormap to use for the spatial plots. Defaults to 'viridis'.
         spot_size (int) (optional): The size of the spots in the spatial plots. Defaults to None.
     """
+
     obj_LR = []
     for i in range(0, len(list_anndata)):
         LR = pd.DataFrame(list_anndata[i].obsm["lr_scores"])
@@ -371,12 +383,36 @@ def lr_interaction_clustering(
             sc.tl.leiden(obj_LR[i], resolution=0.5)
             obj_LR[i].obsm = list_anndata[i].obsm
             obj_LR[i].uns = list_anndata[i].uns
+            obj_LR[i].obs["leiden"] = obj_LR[i].obs["leiden"].astype("int64")
             sc.pl.spatial(
                 obj_LR[i],
                 img_key="hires",
                 color="leiden",
                 size=1.5,
                 cmap=cmap)
+
+            list_anndata[i].obs["LR_Cluster"] = obj_LR[i].obs["leiden"]
+            barplot_data = (
+                list_anndata[i]
+                .obs.groupby(["cell_type", "LR_Cluster"])
+                .size()
+                .reset_index(name="Count")
+            )
+
+            # Calculate proportions for each category in col2
+            proportions = (
+                barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
+                .sum()
+                .unstack("LR_Cluster")
+            )
+            proportions = proportions.div(proportions.sum(axis=1), axis=0)
+
+            # Create a stacked barplot
+            sns.set(style="whitegrid")
+            proportions.plot(kind="bar", stacked=True, colormap=cmap)
+            plt.ylabel("Proportion")
+            plt.legend().remove()
+            plt.show()
 
         if clustering == "hierarchical":
             for n_clusters in range(2, 11):
@@ -414,7 +450,6 @@ def lr_interaction_clustering(
             plt.scatter(
                 umap_result[:, 0], umap_result[:, 1], c=obj_LR[i]["Cluster"], cmap=cmap
             )
-            plt.title("UMAP Visualization with Clusters")
             plt.xticks([])  # Hide x-axis tick marks and labels
             plt.yticks([])  # Hide y-axis tick marks and labels
             plt.axis('off')  # Hide the border
@@ -439,16 +474,8 @@ def lr_interaction_clustering(
             # Create a stacked barplot
             sns.set(style="whitegrid")
             proportions.plot(kind="bar", stacked=True, colormap=cmap)
-
-            # Add labels and title
-            plt.xlabel("Categories in col2")
-            plt.ylabel("Proportion of col1")
-            plt.title("Stacked Barplot of Proportions")
-
-            # Remove the legend
+            plt.ylabel("Proportion")
             plt.legend().remove()
-
-            # Show the plot
             plt.show()
 
             # Show spatial plot
@@ -477,6 +504,9 @@ def subset_clusters(sample, clusters):
         values.
     """
 
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
+
     cluster_dict = {}
 
     for ind in clusters.index:
@@ -504,6 +534,9 @@ def calculate_cluster_interactions(sample):
         that cluster as the value
     """
 
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
+
     cluster_dict = {}
 
     for key in sample.keys():
@@ -523,15 +556,20 @@ def run_gsea(
 
     Args:
         sample (dict): A dictionary containing LR matrices.
-        lrs (list) (optional): A list of LR pairs to use for GSEA analysis instead of sample. Defaults to None.
+        lrs (list) (optional): A list of LR pairs to use for GSEA analysis instead of
+        sample. Defaults to None.
         organism (str) (optional): The organism to use. Defaults to 'human'.
-        gene_sets (list) (optional): The gene sets to use for gseapy analysis. Defaults to ['KEGG_2021_Human',
+        gene_sets (list) (optional): The gene sets to use for gseapy analysis. Defaults
+        to ['KEGG_2021_Human',
         'MSigDB_Hallmark_2020'].
         show_plots (bool) (optional): Whether to show plots or not. Defaults to True.
 
     Returns:
         pd.DataFrame: A DataFrame with the GSEA results.
     """
+
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
 
     gene_list = set()
 

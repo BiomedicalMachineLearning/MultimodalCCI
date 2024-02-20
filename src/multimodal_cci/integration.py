@@ -19,6 +19,9 @@ def normalise_within_tech(samples, sample_sizes, target=None):
         list: The list of samples with normalized matrices.
     """
 
+    if not isinstance(samples, list):
+        raise ValueError("Samples must be a list of dicts of LR matrices.")
+
     if target is None:
         target = sample_sizes[0]
 
@@ -40,6 +43,9 @@ def get_majority_lr_pairs(samples, equal_to=False):
     Returns:
         list: A list of LR pairs that are present in a majority of samples
     """
+
+    if not isinstance(samples, list):
+        raise ValueError("Samples must be a list of dicts of LR matrices.")
 
     lr_pairs_counts = {}
     lr_pairs = []
@@ -72,6 +78,9 @@ def subset_samples(samples, lr_pairs):
         the LR pairs in lr_pairs.
     """
 
+    if not isinstance(samples, list):
+        raise ValueError("Samples must be a list of dicts of LR matrices.")
+
     subsetted_samples = []
 
     for sample in samples:
@@ -93,6 +102,9 @@ def normalise_between_tech(samples, method="mean"):
     Returns:
         The normalized nested list of samples.
     """
+
+    if not isinstance(samples, list):
+        raise ValueError("Samples must be a list of dicts of LR matrices.")
 
     tech_counts = []
     for tech_samples in samples:
@@ -128,6 +140,9 @@ def integrate_samples(samples):
         dict: A dictionary where keys are LR pairs and values are the integrated
         matrices.
     """
+
+    if not isinstance(samples, list):
+        raise ValueError("Samples must be a list of dicts of LR matrices.")
 
     integrated = {}
     lr_matrices = {}
@@ -171,6 +186,9 @@ def calculate_overall_interactions(sample, normalisation=True):
     Returns:
         pd.DataFrame: A matrix representing the overall interactions.
     """
+
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of dicts of LR matrices.")
 
     total = None
     for lr in sample.keys():
