@@ -43,12 +43,11 @@ def rename_celltypes(sample, replacements):
         raise ValueError("The sample must be a dict of LR matrices.")
 
     renamed = sample.copy()
-    for i in range(len(renamed)):
-        for lr_pair in renamed[i].keys():
-            renamed[i][lr_pair].rename(
-                index=replacements,
-                columns=replacements,
-                inplace=True)
+    for lr_pair in renamed.keys():
+        renamed[lr_pair].rename(
+            index=replacements,
+            columns=replacements,
+            inplace=True)
 
     return renamed
 
