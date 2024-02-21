@@ -61,11 +61,12 @@ def read_stLearn(path):
 
     Returns:
         dict: A dictionary of LR matrices.
+        int: The number of cells or spots in the dataset.
     """
 
     adata = sc.read_h5ad(path)
 
-    return adata.uns['per_lr_cci_cell_type']
+    return adata.uns['per_lr_cci_cell_type'], adata.shape[0]
 
 
 def read_CellPhoneDB(path):

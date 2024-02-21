@@ -352,143 +352,141 @@ def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
 
 
 def lr_interaction_clustering(
-        list_anndata,
+        sample,
         clustering="leiden",
         cmap="jet",
         spot_size=None):
     """Clustering of spatial LR interaction scores on AnnData objects.
 
     Args:
-        list_anndata (list): A list of AnnData objects.
+        sample (AnnData): An AnnData object that has been run through stLearn.
         clustering (str) (optional): The clustering method to use. Defaults to 'KMeans'.
-        cmap (str) (optional): The colormap to use for the spatial plots. Defaults to 'viridis'.
-        spot_size (int) (optional): The size of the spots in the spatial plots. Defaults to None.
+        cmap (str) (optional): The colormap to use for the spatial plots. Defaults to 
+        'viridis'.
+        spot_size (int) (optional): The size of the spots in the spatial plots. Defaults
+        to None.
     """
 
-    obj_LR = []
-    for i in range(0, len(list_anndata)):
-        LR = pd.DataFrame(list_anndata[i].obsm["lr_scores"])
-        LR.columns = list(list_anndata[i].uns["lr_summary"].index)
-        LR.index = list_anndata[i].obs.index
-        obj_LR.append(LR)
+    LR = pd.DataFrame(sample.obsm["lr_scores"])
+    LR.columns = list(sample.uns["lr_summary"].index)
+    LR.index = sample.obs.index
 
-    for i in range(0, len(list_anndata)):
-        if clustering == "leiden":
-            obj_LR[i] = sc.AnnData(obj_LR[i])
-            sc.pp.normalize_total(obj_LR[i], inplace=True)
-            sc.pp.log1p(obj_LR[i])
-            sc.pp.pca(obj_LR[i])
-            sc.pp.highly_variable_genes(obj_LR[i], flavor="seurat", n_top_genes=2000)
-            sc.pp.neighbors(obj_LR[i], use_rep="X_pca", n_neighbors=15)
-            sc.tl.leiden(obj_LR[i], resolution=0.5)
-            obj_LR[i].obsm = list_anndata[i].obsm
-            obj_LR[i].uns = list_anndata[i].uns
-            obj_LR[i].obs["leiden"] = obj_LR[i].obs["leiden"].astype("int64")
-            sc.pl.spatial(
-                obj_LR[i],
-                img_key="hires",
-                color="leiden",
-                size=1.5,
-                cmap=cmap)
+    if clustering == "leiden":
+        LR = sc.AnnData(LR)
+        sc.pp.normalize_total(LR, inplace=True)
+        sc.pp.log1p(LR)
+        sc.pp.pca(LR)
+        sc.pp.highly_variable_genes(LR, flavor="seurat", n_top_genes=2000)
+        sc.pp.neighbors(LR, use_rep="X_pca", n_neighbors=15)
+        sc.tl.leiden(LR, resolution=0.5)
+        LR.obsm = sample.obsm
+        LR.uns = sample.uns
+        LR.obs["leiden"] = LR.obs["leiden"].astype("int64")
+        sc.pl.spatial(
+            LR,
+            img_key="hires",
+            color="leiden",
+            size=1.5,
+            cmap=cmap)
 
-            list_anndata[i].obs["LR_Cluster"] = obj_LR[i].obs["leiden"]
-            barplot_data = (
-                list_anndata[i]
-                .obs.groupby(["cell_type", "LR_Cluster"])
-                .size()
-                .reset_index(name="Count")
+        sample.obs["LR_Cluster"] = LR.obs["leiden"]
+        barplot_data = (
+            sample
+            .obs.groupby(["cell_type", "LR_Cluster"])
+            .size()
+            .reset_index(name="Count")
+        )
+
+        # Calculate proportions for each category in col2
+        proportions = (
+            barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
+            .sum()
+            .unstack("LR_Cluster")
+        )
+        proportions = proportions.div(proportions.sum(axis=1), axis=0)
+
+        # Create a stacked barplot
+        sns.set(style="whitegrid")
+        proportions.plot(kind="bar", stacked=True, colormap=cmap)
+        plt.ylabel("Proportion")
+        plt.legend().remove()
+        plt.show()
+
+    if clustering == "hierarchical":
+        for n_clusters in range(2, 11):
+            # Find optimal numer of clusters Silhouette
+            clusterer = AgglomerativeClustering(
+                n_clusters=n_clusters, linkage="ward"
             )
+            cluster_labels = clusterer.fit_predict(LR)
+            silhouette_avg = silhouette_score(LR, cluster_labels)
+        # Perform hierarchical clustering
+        model = AgglomerativeClustering(
+            n_clusters=np.argmax(silhouette_avg) + 2, linkage="ward"
+        )
+        LR["Cluster"] = model.fit_predict(LR)
 
-            # Calculate proportions for each category in col2
-            proportions = (
-                barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
-                .sum()
-                .unstack("LR_Cluster")
-            )
-            proportions = proportions.div(proportions.sum(axis=1), axis=0)
+    if clustering == "kmeans":
+        # Find optimal numer of clusters Davies-Bouldin index
+        db_scores = []
+        for k in range(2, 11):
+            kmeans = KMeans(n_clusters=k, random_state=42)
+            labels = kmeans.fit_predict(LR)
+            db_scores.append(davies_bouldin_score(LR, labels))
+        # Add 2 to account for starting with k=2
+        optimal_clusters = np.argmin(db_scores) + 2
+        print(f"The optimal number of clusters is: {optimal_clusters}")
+        kmeans = KMeans(n_clusters=optimal_clusters, random_state=42)
+        LR["Cluster"] = kmeans.fit_predict(LR)
 
-            # Create a stacked barplot
-            sns.set(style="whitegrid")
-            proportions.plot(kind="bar", stacked=True, colormap=cmap)
-            plt.ylabel("Proportion")
-            plt.legend().remove()
-            plt.show()
+    if clustering == "hierarchical" or clustering == "kmeans":
+        # Perform UMAP
+        umap_model = umap.UMAP(n_components=2, random_state=42)
+        umap_result = umap_model.fit_transform(LR.drop("Cluster", axis=1))
 
-        if clustering == "hierarchical":
-            for n_clusters in range(2, 11):
-                # Find optimal numer of clusters Silhouette
-                clusterer = AgglomerativeClustering(
-                    n_clusters=n_clusters, linkage="ward"
-                )
-                cluster_labels = clusterer.fit_predict(obj_LR[i])
-                silhouette_avg = silhouette_score(obj_LR[i], cluster_labels)
-            # Perform hierarchical clustering
-            model = AgglomerativeClustering(
-                n_clusters=np.argmax(silhouette_avg) + 2, linkage="ward"
-            )
-            obj_LR[i]["Cluster"] = model.fit_predict(obj_LR[i])
+        # Plot the UMAP results colored by cluster
+        plt.scatter(
+            umap_result[:, 0], umap_result[:, 1], c=LR["Cluster"], cmap=cmap
+        )
+        plt.xticks([])  # Hide x-axis tick marks and labels
+        plt.yticks([])  # Hide y-axis tick marks and labels
+        plt.axis('off')  # Hide the border
+        plt.show()
 
-        if clustering == "kmeans":
-            # Find optimal numer of clusters Davies-Bouldin index
-            db_scores = []
-            for k in range(2, 11):
-                kmeans = KMeans(n_clusters=k, random_state=42)
-                labels = kmeans.fit_predict(obj_LR[i])
-                db_scores.append(davies_bouldin_score(obj_LR[i], labels))
-            # Add 2 to account for starting with k=2
-            optimal_clusters = np.argmin(db_scores) + 2
-            print(f"The optimal number of clusters is: {optimal_clusters}")
-            kmeans = KMeans(n_clusters=optimal_clusters, random_state=42)
-            obj_LR[i]["Cluster"] = kmeans.fit_predict(obj_LR[i])
+        sample.obs["LR_Cluster"] = LR["Cluster"].astype("object")
+        barplot_data = (
+            sample
+            .obs.groupby(["cell_type", "LR_Cluster"])
+            .size()
+            .reset_index(name="Count")
+        )
 
-        if clustering == "hierarchical" or clustering == "kmeans":
-            # Perform UMAP
-            umap_model = umap.UMAP(n_components=2, random_state=42)
-            umap_result = umap_model.fit_transform(obj_LR[i].drop("Cluster", axis=1))
+        # Calculate proportions for each category in col2
+        proportions = (
+            barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
+            .sum()
+            .unstack("LR_Cluster")
+        )
+        proportions = proportions.div(proportions.sum(axis=1), axis=0)
 
-            # Plot the UMAP results colored by cluster
-            plt.scatter(
-                umap_result[:, 0], umap_result[:, 1], c=obj_LR[i]["Cluster"], cmap=cmap
-            )
-            plt.xticks([])  # Hide x-axis tick marks and labels
-            plt.yticks([])  # Hide y-axis tick marks and labels
-            plt.axis('off')  # Hide the border
-            plt.show()
+        # Create a stacked barplot
+        sns.set(style="whitegrid")
+        proportions.plot(kind="bar", stacked=True, colormap=cmap)
+        plt.ylabel("Proportion")
+        plt.legend().remove()
+        plt.show()
 
-            list_anndata[i].obs["LR_Cluster"] = obj_LR[i]["Cluster"].astype("object")
-            barplot_data = (
-                list_anndata[i]
-                .obs.groupby(["cell_type", "LR_Cluster"])
-                .size()
-                .reset_index(name="Count")
-            )
-
-            # Calculate proportions for each category in col2
-            proportions = (
-                barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
-                .sum()
-                .unstack("LR_Cluster")
-            )
-            proportions = proportions.div(proportions.sum(axis=1), axis=0)
-
-            # Create a stacked barplot
-            sns.set(style="whitegrid")
-            proportions.plot(kind="bar", stacked=True, colormap=cmap)
-            plt.ylabel("Proportion")
-            plt.legend().remove()
-            plt.show()
-
-            # Show spatial plot
-            list_anndata[i].obs["LR_Cluster"] = (
-                list_anndata[i].obs["LR_Cluster"].astype("int64")
-            )
-            sc.pl.spatial(
-                list_anndata[i],
-                color="LR_Cluster",
-                cmap=cmap,
-                spot_size=spot_size,
-                legend_loc=None  # Remove the legend
-            )
+        # Show spatial plot
+        sample.obs["LR_Cluster"] = (
+            sample.obs["LR_Cluster"].astype("int64")
+        )
+        sc.pl.spatial(
+            sample,
+            color="LR_Cluster",
+            cmap=cmap,
+            spot_size=spot_size,
+            legend_loc=None  # Remove the legend
+        )
 
 
 def subset_clusters(sample, clusters):
