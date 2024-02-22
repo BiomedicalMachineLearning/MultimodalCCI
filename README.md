@@ -53,14 +53,24 @@
 
 # MMCCI: Multimodal Cell-Cell Interaction Integration, Analysis, and Visualisation
 
-**MMCCI** is a fast and lightweight Python package for integrating and visualizing CCI networks within and between multiple modalities at the level of the individual LR pair.
-
-MMCCI works on **scRNA-seq** and **spatial transcriptomics** data samples that have been processed through the following CCI algorithms:
+**MMCCI** is a fast and lightweight Python package for integrating and visualizing CCI networks within and between multiple modalities at the level of the individual LR pair. It works on **scRNA-seq** and **spatial transcriptomics** data samples that have been processed through the following CCI algorithms:
 1. stLearn
 2. CellChat
 3. CellPhoneDB
 4. NATMI
 5. Squidpy
+
+## Getting Started
+
+### Installation
+
+Coming soon
+
+### Documentation
+
+Documentation and Tutorials are available at our **Read the Docs** page (coming soon).
+
+There is a tutorial notebook [here](examples/brain_aging_integration.ipynb)
 
 ## CCI Integration
 
@@ -80,18 +90,6 @@ MMCCI provides multiple useful analyses that can be run on the integrated networ
 5. GSEA pathway analysis
 
 ![Downstream Analyses](docs/images/analyses.png)
-
-## Getting Started
-
-### Installation
-
-Coming soon
-
-### Documentation
-
-Documentation and Tutorials are available at our **Read the Docs** page (coming soon).
-
-There is a tutorial notebook [here](https://github.com/BiomedicalMachineLearning/MultimodalCCI/blob/main/examples/brain_aging_integration.ipynb)
 
 ### Pipeline Diagram
 
