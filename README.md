@@ -51,17 +51,53 @@
 </table> -->
 
 
-# MMCCI - Multimodal Cell-Cell Interaction Integration and Analysis
+# MMCCI: Multimodal Cell-Cell Interaction Integration, Analysis, and Visualisation
 
-**MMCCI** is a Python package for integrating and visualizing CCI networks within and between multiple modalities at the level of the individual LR pair. MMCCI provides network and clustering visualizations as well as insightful downstream analyses, including network dissimilarity scoring and permutation testing for comparison between biological conditions, LR pair clustering, cell-type pair LR querying, and pathway analysis.
+**MMCCI** is a fast and lightweight Python package for integrating and visualizing CCI networks within and between multiple modalities at the level of the individual LR pair.
 
----
+MMCCI works on **scRNA-seq** and **spatial transcriptomics** data samples that have been processed through the following CCI algorithms:
+1. stLearn
+2. CellChat
+3. CellPhoneDB
+4. NATMI
+5. Squidpy
+
+## CCI Integration
+
+MMCCI allows users to integrate multiple CCI results together, both:
+1. Samples from a single modality (eg. Visium)
+2. Samples from multiple modalities (eg. Visium, Xenium and CosMX)
+
+![Integration Method](docs/images/integration_method.png)
+
+## CCI Analysis
+
+MMCCI provides multiple useful analyses that can be run on the integrated networks or from a single sample:
+1. Network comparison between groups with permutation testing
+2. CLustering of LR pairs with similar networks
+3. Clustering of spots/cells with similar interaction scores
+4. Sender-receiver LR querying
+5. GSEA pathway analysis
+
+![Downstream Analyses](docs/images/analyses.png)
 
 ## Getting Started
 
-<!-- - [Documentation and Tutorials](https://.readthedocs.io/en/latest/) -->
+### Installation
+
+Coming soon
+
+### Documentation
+
+Documentation and Tutorials are available at our **Read the Docs** page (coming soon).
+
+There is a tutorial notebook [here](https://github.com/BiomedicalMachineLearning/MultimodalCCI/blob/main/examples/brain_aging_integration.ipynb)
+
+### Pipeline Diagram
+
+![MMCCI Pipeline](docs/images/pipeline.png)
 
 ## Citing MMCCI
 
-If you have used MMCCI in your research, please consider citing us:
+If you have used MMCCI in your research, please consider citing us: (coming soon).
 
