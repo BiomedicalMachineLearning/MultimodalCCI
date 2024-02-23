@@ -130,11 +130,13 @@ def normalise_between_tech(samples, method="mean"):
     return samples
 
 
-def integrate_samples(samples):
+def integrate_samples(samples, all_lr_pairs=False):
     """Integrates matrices from different technologies.
 
     Args:
         samples (list): A list of samples with different technologies.
+        all_lr_pairs (bool) (optional): If True and two samples are used, use all the LR
+        pairs from either sample. Defaults to False.
 
     Returns:
         dict: A dictionary where keys are LR pairs and values are the integrated
@@ -148,7 +150,10 @@ def integrate_samples(samples):
     lr_matrices = {}
 
     if len(samples) == 2:
-        lr_pairs = get_majority_lr_pairs(samples, equal_to=False)
+        if all_lr_pairs:
+            lr_pairs = get_majority_lr_pairs(samples, equal_to=True)
+        else:
+            lr_pairs = get_majority_lr_pairs(samples, equal_to=False)
 
     elif len(samples) > 2:
         lr_pairs = sorted(get_majority_lr_pairs(samples, equal_to=True))
