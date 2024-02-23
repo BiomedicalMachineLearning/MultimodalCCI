@@ -23,7 +23,7 @@ pip install multimodal_cci
 Documentation and Tutorials are available at our **Read the Docs** page (coming soon).
 
 - There is a tutorial notebook [here](examples/brain_aging_example.ipynb)
-- To understand how to load CCI results from different tools, look at this notebook [here](example/loading_CCI_results.ipynb)
+- To understand how to load CCI results from different tools, look at this notebook [here](examples/loading_CCI_results.ipynb)
 
 ## CCI Integration
 
