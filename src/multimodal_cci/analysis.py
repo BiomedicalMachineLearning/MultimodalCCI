@@ -356,12 +356,13 @@ def lr_interaction_clustering(
         clustering="leiden",
         cmap="jet",
         spot_size=None):
-    """Clustering of spatial LR interaction scores on AnnData objects.
+    """Clustering of spatial LR interaction scores on AnnData objects processed through
+    stLearn.
 
     Args:
         sample (AnnData): An AnnData object that has been run through stLearn.
         clustering (str) (optional): The clustering method to use. Defaults to 'KMeans'.
-        cmap (str) (optional): The colormap to use for the spatial plots. Defaults to 
+        cmap (str) (optional): The colormap to use for the spatial plots. Defaults to
         'viridis'.
         spot_size (int) (optional): The size of the spots in the spatial plots. Defaults
         to None.
@@ -566,12 +567,11 @@ def run_gsea(
         pd.DataFrame: A DataFrame with the GSEA results.
     """
 
-    if not isinstance(sample, dict):
-        raise ValueError("The sample must be a dict of LR matrices.")
-
     gene_list = set()
 
     if lrs is None:
+        if not isinstance(sample, dict):
+            raise ValueError("The sample must be a dict of LR matrices.")
         lrs = sample.keys()
 
     for lr in lrs:
