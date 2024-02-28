@@ -1,4 +1,4 @@
-# MMCCI: Multimodal Cell-Cell Interaction Integrative Analysis of Spatial Data
+# MMCCI: Multimodal Cell-Cell Interaction Integrative Analysis of Single Cell and Spatial Data
 
 **MMCCI** is a fast and lightweight Python package for integrating and visualizing CCI networks within and between multiple modalities at the level of the individual LR pair. It works on **scRNA-seq** and **spatial transcriptomics** data samples that have been processed through the following CCI algorithms:
 1. stLearn
