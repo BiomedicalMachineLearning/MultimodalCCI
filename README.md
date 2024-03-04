@@ -51,7 +51,7 @@ MMCCI provides multiple useful analyses that can be run on the integrated networ
 ## Citing MMCCI
 
 If you have used MMCCI in your research, please consider citing us: 
-'''
+```
 Hockey, L., Mulay, O., Xiong, Z., Khosrotehrani, K., Nefzger, C. M., & Nguyen, Q. (2024). MMCCI: Multimodal Cell-Cell Interaction Integrative Analysis of Single Cell and Spatial Data. bioRxiv. doi:10.1101/2024.02.28.582639
-'''
+```
 
