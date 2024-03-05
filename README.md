@@ -1,5 +1,39 @@
 # MMCCI: Multimodal Cell-Cell Interaction Integrative Analysis of Single Cell and Spatial Data
 
+<table align="center">
+  <tr>
+    <td>
+      <b>Package</b>
+    </td>
+    <td>
+      <a href="https://pypi.python.org/pypi/multimodal-cci/">
+      <img src="https://img.shields.io/pypi/v/multimodal-cci.svg" alt="PyPI Version">
+      </a>
+      <a href="https://pepy.tech/project/multimodal-cci">
+      <img src="https://static.pepy.tech/personalized-badge/multimodal-cci?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads"
+        alt="PyPI downloads">
+    </td>
+  </tr>
+  <tr>
+    <td>
+     <b>Paper</b>
+    </td>
+    <td>
+      <a href="https://doi.org/10.1101/2023.05.14.540710"><img src="https://zenodo.org/badge/DOI/10.1101/2023.05.14.540710.svg"
+        alt="DOI"></a>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <b>License</b>
+    </td>
+    <td>
+      <a href="https://github.com/BiomedicalMachineLearning/MultimodalCCI/blob/main/LICENSE.txt"><img src="https://img.shields.io/badge/License-BSD-blue.svg"
+        alt="LICENSE"></a>
+    </td>
+  </tr>
+</table>
+        
 **MMCCI** is a fast and lightweight Python package for integrating and visualizing CCI networks within and between multiple modalities at the level of the individual LR pair. It works on **scRNA-seq** and **spatial transcriptomics** data samples that have been processed through the following CCI algorithms:
 1. stLearn
 2. CellChat
