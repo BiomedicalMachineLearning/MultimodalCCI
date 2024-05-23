@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: multimodal_cci
-Version: 1.0.1
+Version: 1.1.0
 Summary: A Python package for processing multi-modal CCI data
 Home-page: https://github.com/BiomedicalMachineLearning/MultimodalCCI
 Author: Genomics and Machine Learning lab
@@ -24,36 +24,20 @@ Requires-Dist: gseapy>=1.1.1
 Requires-Dist: scanpy>=1.9.0
 Requires-Dist: seaborn>=0.11.2
 
+# MMCCI: Multimodal Cell-Cell Interaction Integrative Analysis of Single Cell and Spatial Data
 
-<!-- <table align="center">
+<table align="center">
   <tr>
     <td>
       <b>Package</b>
     </td>
     <td>
-      <a href="https://pypi.python.org/pypi//">
-      <img src="https://img.shields.io/pypi/v/.svg" alt="PyPI Version">
+      <a href="https://pypi.python.org/pypi/multimodal-cci/">
+      <img src="https://img.shields.io/pypi/v/multimodal-cci.svg" alt="PyPI Version">
       </a>
-      <a href="https://pepy.tech/project/">
-      <img src="https://static.pepy.tech/personalized-badge/?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads"
+      <a href="https://pepy.tech/project/multimodal-cci">
+      <img src="https://static.pepy.tech/personalized-badge/multimodal-cci?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads"
         alt="PyPI downloads">
-      </a>
-      <a href="https://anaconda.org/conda-forge/">
-      <img src="https://anaconda.org/conda-forge//badges/downloads.svg" alt="Conda downloads">
-      </a>
-      <a href="https://anaconda.org/conda-forge/">
-      <img src="https://anaconda.org/conda-forge//badges/downloads.svg" alt="Install">
-      </a>
-    </td>
-  </tr>
-  <tr>
-    <td>
-      <b>Documentation</b>
-    </td>
-    <td>
-      <a href="https://multimodalcci.readthedocs/en/latest/">
-      <img src="https://multimodalcci.readthedocs.org/projects//badge/?version=latest" alt="Documentation Status">
-      </a>
     </td>
   </tr>
   <tr>
@@ -61,7 +45,7 @@ Requires-Dist: seaborn>=0.11.2
      <b>Paper</b>
     </td>
     <td>
-      <a href="https://doi.org/"><img src="https://zenodo.org/badge/DOI/.svg"
+      <a href="https://doi.org/10.1101/2023.05.14.540710"><img src="https://zenodo.org/badge/DOI/10.1101/2023.05.14.540710.svg"
         alt="DOI"></a>
     </td>
   </tr>
@@ -74,11 +58,8 @@ Requires-Dist: seaborn>=0.11.2
         alt="LICENSE"></a>
     </td>
   </tr>
-</table> -->
-
-
-# MMCCI: Multimodal Cell-Cell Interaction Integration, Analysis, and Visualisation
-
+</table>
+        
 **MMCCI** is a fast and lightweight Python package for integrating and visualizing CCI networks within and between multiple modalities at the level of the individual LR pair. It works on **scRNA-seq** and **spatial transcriptomics** data samples that have been processed through the following CCI algorithms:
 1. stLearn
 2. CellChat
@@ -90,14 +71,20 @@ Requires-Dist: seaborn>=0.11.2
 
 ### Installation
 
-Coming soon
+MMCCI can be installed with `pip`
+
+```
+pip install multimodal-cci
+```
+
 
 ### Documentation
 
-Documentation and Tutorials are available at our **Read the Docs** page (coming soon).
+Documentation and Tutorials are available here and we are commited to maintaining the software and addressing issues raised by users.
 
-- There is a tutorial notebook [here](examples/brain_aging_example.ipynb)
-- To understand how to load CCI results from different tools, look at this notebook [here](example/loading_CCI_results.ipynb)
+- There is a brain aging tutorial notebook [here](examples/brain_aging_example.ipynb)
+- There is a melanoma tutorial notebook [here](examples/melanoma_example.ipynb)
+- To understand how to load CCI results from different tools, look at this notebook [here](examples/loading_CCI_results.ipynb)
 
 ## CCI Integration
 
@@ -124,7 +111,10 @@ MMCCI provides multiple useful analyses that can be run on the integrated networ
 
 ## Citing MMCCI
 
-If you have used MMCCI in your research, please consider citing us: (coming soon).
+If you have used MMCCI in your research, please consider citing us: 
+```
+Hockey, L., Mulay, O., Xiong, Z., Khosrotehrani, K., Nefzger, C. M., & Nguyen, Q. (2024). MMCCI: Multimodal Cell-Cell Interaction Integrative Analysis of Single Cell and Spatial Data. bioRxiv. doi:10.1101/2024.02.28.582639
+```
 
 
 

@@ -10,7 +10,10 @@ from . import analysis as an
 def network_plot(
     network,
     p_vals=None,
+    diff_plot=False,
     normalise=True,
+    remove_unconnected=True,
+    show_labels=True,
     p_val_cutoff=0.05,
     edge_weight=20,
     text_size=15,
@@ -19,7 +22,9 @@ def network_plot(
     arrowsize=20,
     node_label_dist=1,
     p_val_text_size=10,
-    cmap=None,
+    node_colors=None,
+    node_palette=None,
+    outer_node_palette=None,
 ):
     """Plots a network with optional edge significance highlighting and node
     coloring based on in-degree and out-degree difference.
@@ -30,8 +35,13 @@ def network_plot(
         p_vals (pandas.DataFrame or numpy.ndarray, optional): A matrix of p-values
         corresponding to the edges in `network`. If not provided, significance values
         will not be plotted. Defaults to None.
+        diff_plot (bool, optional): Whether you are plotting the network difference, to
+        show up and down-regulated edges. Defaults to False.
         normalise (bool, optional): Whether to normalize the network matrix before
         plotting. Defaults to True.
+        remove_unconnected (bool, optional): Whether to remove cell types that
+        do not interact with any cell types. Defaults to True.
+        show_labels (bool, optional): Whether to show node labels. Defaults to True.
         p_val_cutoff (float, optional): The p-value cutoff for determining significant
         edges. Defaults to 0.05.
         edge_weight (float, optional): The base weight for edges. Defaults to 20.
@@ -42,8 +52,14 @@ def network_plot(
         20.
         node_label_dist (float, optional): A factor for adjusting the distance between
         nodes and labels. Defaults to 1.
-        cmap (matplotlib.colors.Colormap, optional): A custom colormap for node
-        coloring. Defaults to None.
+        p_val_text_size (int, optional): The font size for p-value labels. Defaults to
+        10.
+        node_colors (dict, optional): A dictionary of colors for each node. Overwrites
+        node_palette. Defaults to None.
+        node_palette (str, optional): The name of the color palette to use for nodes.
+        Defaults to None.
+        outer_node_palette (str, optional): The name of the color palette to use for
+        outer nodes to show sender/reciever nodes. Defaults to None.
     """
 
     if isinstance(network, dict):
@@ -53,6 +69,14 @@ def network_plot(
 
     plt.figure(figsize=figsize)
 
+    if remove_unconnected:
+        network = network.loc[(network != 0).any(axis=1), (network != 0).any(axis=0)]
+        network = network.loc[network.index.isin(
+            network.columns), network.columns.isin(network.index)]
+
+    if normalise:
+        if network.min().min() >= 0:
+            network = network / network.sum().sum()
     network_abs = abs(network)
 
     if normalise:
@@ -68,23 +92,35 @@ def network_plot(
 
     in_out_diff = {node: in_degree[node] - out_degree[node] for node in G_network.nodes}
 
-    if cmap is None:
-        # Create a color scale based on the in-degree and out-degree difference
-        max_diff = max(abs(value) for value in in_out_diff.values())
-        color_scale = np.linspace(-max_diff, max_diff, 256)
-        cmap_colors = [(1, 0, 0), (0.7, 0.7, 0.7), (0, 0, 1)]  # Blue, Grey, Red
-        cmap = LinearSegmentedColormap.from_list("custom_cmap", cmap_colors)
+    max_diff = max(abs(value) for value in in_out_diff.values())
+    color_scale = np.linspace(-max_diff, max_diff, 256)
 
+    if outer_node_palette is None:
+        # Create a color scale based on the in-degree and out-degree difference
+        cmap_colors = [(1, 0, 0), (0.7, 0.7, 0.7), (0, 0, 1)]  # Blue, Grey, Red
+        outer_node_cmap = LinearSegmentedColormap.from_list("custom_cmap", cmap_colors)
+    else:
+        outer_node_cmap = plt.get_cmap(outer_node_palette)
+
+    edge_colors = []
     # Map node colors to the in-degree and out-degree difference
     if sum(abs(value) for value in in_out_diff.values()) == 0:
-        node_colors = ['grey' for node in G_network.nodes]
+        edge_colors = ['grey' for node in G_network.nodes]
     else:
-        node_colors = [
-            cmap(int(np.interp(in_out_diff[node], color_scale, range(256))))
+        edge_colors = [
+            outer_node_cmap(int(np.interp(in_out_diff[node], color_scale, range(256))))
             for node in G_network.nodes
         ]
 
-    if p_vals is None:
+    if node_colors is not None:
+        node_colors = [node_colors[node] for node in G_network.nodes]
+    else:
+        if node_palette is not None:
+            node_colors = list(plt.get_cmap(node_palette).colors)[:len(G_network.nodes)]
+        else:
+            node_colors = ["grey" for node in G_network.nodes]
+
+    if p_vals is None or diff_plot == False:
         # Create a non-significant matrix
         p_vals = network_abs.replace(network_abs.values, 1, inplace=False)
     else:
@@ -95,10 +131,22 @@ def network_plot(
     G_p_vals = nx.from_pandas_adjacency(p_vals, create_using=nx.DiGraph)
     G_network_updown = nx.from_pandas_adjacency(network, create_using=nx.DiGraph)
 
-    non_sig = [
-        (u, v) for (u, v, d) in G_p_vals.edges(data=True) if d["weight"] > p_val_cutoff
-    ]
-    non_sig = [edge for edge in non_sig if edge in weights.keys()]
+    non_sig_up = [
+        (u, v) for (u, v, d) in G_p_vals.edges(data=True)
+        if d["weight"] > p_val_cutoff
+        and u in G_network_updown
+        and v in G_network_updown[u]
+        and G_network_updown[u][v]["weight"] > 0]
+    non_sig_up = [edge for edge in non_sig_up if edge in weights.keys()]
+
+    non_sig_down = [
+        (u, v) for (u, v, d) in G_p_vals.edges(data=True)
+        if d["weight"] > p_val_cutoff
+        and u in G_network_updown
+        and v in G_network_updown[u]
+        and G_network_updown[u][v]["weight"] < 0]
+    non_sig_down = [edge for edge in non_sig_down if edge in weights.keys()]
+
     sig_up = [
         (u, v) for (u, v, d) in G_p_vals.edges(data=True)
         if d["weight"] <= p_val_cutoff
@@ -114,15 +162,21 @@ def network_plot(
         and G_network_updown[u][v]["weight"] < 0]
     sig_down = [edge for edge in sig_down if edge in weights.keys()]
 
-    edge_thickness_non_sig = []
+    edge_thickness_non_sig_up = []
+    edge_thickness_non_sig_down = []
     edge_thickness_sig_up = []
     edge_thickness_sig_down = []
 
     for edge in weights.keys():
-        if edge in non_sig:
-            edge_thickness_non_sig.append(weights[edge] * edge_weight)
+        if edge in non_sig_up:
+            edge_thickness_non_sig_up.append(weights[edge] * edge_weight)
         else:
-            edge_thickness_non_sig.append(0)
+            edge_thickness_non_sig_up.append(0)
+
+        if edge in non_sig_down:
+            edge_thickness_non_sig_down.append(weights[edge] * edge_weight)
+        else:
+            edge_thickness_non_sig_down.append(0)
 
         if edge in sig_up:
             edge_thickness_sig_up.append(weights[edge] * edge_weight)
@@ -134,24 +188,67 @@ def network_plot(
         else:
             edge_thickness_sig_down.append(0)
 
+    # if node_colors is None:
     nx.draw_networkx_nodes(
         G_network,
         pos,
         node_size=node_size,
         node_color=node_colors,
+        edgecolors=edge_colors,
+        linewidths=8.0,
     )
 
-    nx.draw_networkx_edges(
-        G_network,
-        pos,
-        node_size=node_size * 2,
-        connectionstyle="arc3,rad=0.08",
-        width=edge_thickness_non_sig,
-        arrows=True,
-        arrowstyle="->",
-        arrowsize=arrowsize,
-        # edgelist=non_sig,
-    )
+    if diff_plot:
+        nx.draw_networkx_edges(
+            G_network,
+            pos,
+            node_size=node_size * 2,
+            connectionstyle="arc3,rad=0.08",
+            width=edge_thickness_non_sig_up,
+            arrows=True,
+            arrowstyle="->",
+            arrowsize=arrowsize,
+            edge_color="pink"
+            # edgelist=non_sig,
+        )
+
+        nx.draw_networkx_edges(
+            G_network,
+            pos,
+            node_size=node_size * 2,
+            connectionstyle="arc3,rad=0.08",
+            width=edge_thickness_non_sig_down,
+            arrows=True,
+            arrowstyle="->",
+            arrowsize=arrowsize,
+            edge_color="lightgreen"
+            # edgelist=non_sig,
+        )
+
+    else:
+        nx.draw_networkx_edges(
+            G_network,
+            pos,
+            node_size=node_size * 2,
+            connectionstyle="arc3,rad=0.08",
+            width=edge_thickness_non_sig_up,
+            arrows=True,
+            arrowstyle="->",
+            arrowsize=arrowsize,
+            # edgelist=non_sig,
+        )
+
+        nx.draw_networkx_edges(
+            G_network,
+            pos,
+            node_size=node_size * 2,
+            connectionstyle="arc3,rad=0.08",
+            width=edge_thickness_non_sig_down,
+            arrows=True,
+            arrowstyle="->",
+            arrowsize=arrowsize,
+            # edgelist=non_sig,
+        )
 
     nx.draw_networkx_edges(
         G_network,
@@ -212,15 +309,16 @@ def network_plot(
         for x, y in pos.items()
     )
 
-    nx.draw_networkx_labels(
-        G_network,
-        pos,
-        font_weight="bold",
-        font_color="black",
-        font_size=text_size,
-        clip_on=False,
-        horizontalalignment="center",
-    )
+    if show_labels:
+        nx.draw_networkx_labels(
+            G_network,
+            pos,
+            font_weight="bold",
+            font_color="black",
+            font_size=text_size,
+            clip_on=False,
+            horizontalalignment="center",
+        )
 
     ax = plt.gca()
     ax.margins(0.08)
@@ -296,21 +394,32 @@ def chord_plot(
         return fig, ax
 
 
-def dissim_hist(dissimilarity_scores):
+def dissim_hist(dissimilarity_scores, x_label_size=24, y_label_size=24, tick_size=20):
     """Plots a histogram of dissimilarity scores.
 
     Args:
         dissimilarity_scores (dict): A dictionary of dissimilarity scores.
+        x_label_size (int): Font size for x-axis label. Defaults to 24.
+        y_label_size (int): Font size for y-axis label. Defaults to 24.
+        tick_size (int): Font size for ticks. Defaults to 20.
     """
 
     plt.hist(list(dissimilarity_scores.values()))
     plt.xlim(0, 1)
-    plt.xlabel("Dissimilarity Score")
-    plt.ylabel("Count")
+    plt.xlabel("Dissimilarity Score", fontsize=x_label_size)
+    plt.ylabel("Count", fontsize=y_label_size)
+    plt.tick_params(axis='both', which='major', labelsize=tick_size)
     plt.show()
 
 
-def lr_top_dissimilarity(dissimilarity_scores, n=10, top=True):
+def lr_top_dissimilarity(
+    dissimilarity_scores,
+    n=10,
+    top=True,
+    x_label_size=24,
+    y_label_size=24,
+    tick_size=20
+):
     """Plots a bar plot of LR pairs with highest/lowest dissimilarity scores.
 
     Args:
@@ -318,6 +427,9 @@ def lr_top_dissimilarity(dissimilarity_scores, n=10, top=True):
         n (int): Number of LR pairs to plot.
         top (bool): If True, plot LR pairs with highest dissimilarity scores.
         If False, plot LR pairs with lowest dissimilarity scores.
+        x_label_size (int): Font size for x-axis label. Defaults to 24.
+        y_label_size (int): Font size for y-axis label. Defaults to 24.
+        tick_size (int): Font size for ticks. Defaults to 20.
     """
 
     reverse = not top
@@ -328,12 +440,21 @@ def lr_top_dissimilarity(dissimilarity_scores, n=10, top=True):
     keys, values = zip(*top_n_items)
 
     plt.barh(keys, values)
-    plt.xlabel("Dissimilarity Score")
-    plt.ylabel("LR Pair")
+    plt.xlabel("Dissimilarity Score", fontsize=x_label_size)
+    plt.ylabel("LR Pair", fontsize=y_label_size)
+    plt.tick_params(axis='both', which='major', labelsize=tick_size)
     plt.show()
 
 
-def lrs_per_celltype(sample, sender, receiver, n=15):
+def lrs_per_celltype(
+    sample,
+    sender,
+    receiver,
+    n=15,
+    x_label_size=24,
+    y_label_size=24,
+    tick_size=20
+):
     """Plots a bar plot of LR pairs and their proportions for a given sender and
     receiver cell type.
 
@@ -343,7 +464,11 @@ def lrs_per_celltype(sample, sender, receiver, n=15):
         receiver (str): The receiver cell type.
         n (int): Number of LR pairs to plot. If None, plot all LR pairs. Defaults to
         15.
+        x_label_size (int): Font size for x-axis label. Defaults to 24.
+        y_label_size (int): Font size for y-axis label. Defaults to 24.
+        tick_size (int): Font size for ticks. Defaults to 20.
     """
+
     if not isinstance(sample, dict):
         raise ValueError("The sample must be a dict of LR matrices.")
 
@@ -353,8 +478,9 @@ def lrs_per_celltype(sample, sender, receiver, n=15):
     keys.reverse()
     values.reverse()
     plt.barh(keys, values)
-    plt.xlabel("Proportion")
-    plt.ylabel("LR Pair")
+    plt.xlabel("Proportion", fontsize=x_label_size)
+    plt.ylabel("LR Pair", fontsize=y_label_size)
+    plt.tick_params(axis='both', which='major', labelsize=tick_size)
     plt.show()
 
 
@@ -370,4 +496,31 @@ def silhouette_scores_plot(silhouette_scores):
     plt.title("Silhouette Score for Different Numbers of Clusters")
     plt.xlabel("Number of Clusters")
     plt.ylabel("Silhouette Score")
+    plt.show()
+
+
+def lr_barplot(sample, n=15, x_label_size=24, y_label_size=24, tick_size=20):
+    """Plots a bar plot of LR pairs and their proportions for a sample.
+
+    Args:
+        sample (dict): A dictionary of LR pairs.
+        n (int): Number of LR pairs to plot. If None, plot all LR pairs. Defaults to
+        15.
+        x_label_size (int): Font size for x-axis label. Defaults to 24.
+        y_label_size (int): Font size for y-axis label. Defaults to 24.
+        tick_size (int): Font size for tick labels. Defaults to 20.
+    """
+
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
+
+    interactions = [(lr, df.sum().sum()) for (lr, df) in sample.items()]
+    interactions.sort(key=lambda x: x[1])
+    interactions = interactions[-n:]
+    keys, values = zip(*interactions)
+    values = [value / sum(values) for value in values]
+    plt.barh(keys, values)
+    plt.xlabel("Relative Interaction Strength", fontsize=x_label_size)
+    plt.ylabel("LR Pair", fontsize=y_label_size)
+    plt.tick_params(axis='both', which='major', labelsize=tick_size)
     plt.show()

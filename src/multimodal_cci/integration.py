@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from scipy import stats
+
 from . import scoring as sc
+from . import tools as tl
 
 
 def normalise_within_tech(samples, sample_sizes, target=None):
@@ -32,13 +35,13 @@ def normalise_within_tech(samples, sample_sizes, target=None):
     return samples
 
 
-def get_majority_lr_pairs(samples, equal_to=False):
-    """Identifies the LR pairs present in a majority of samples.
+def get_lr_pairs(samples, method=">=50%"):
+    """Identifies the LR pairs present in a list of samples according to the given method.
 
     Args:
         samples (list): A list of dictionaries of LR matrices
-        equal_to (bool) (optional): If True, includes LR pairs present in exactly half
-        of the samples. Defaults to False.
+        method (str) (optional): The method to use for identifying LR pairs. Options are
+        "all", ">=50%", ">50%", and "any". Defaults to ">=50%".
 
     Returns:
         list: A list of LR pairs that are present in a majority of samples
@@ -56,12 +59,19 @@ def get_majority_lr_pairs(samples, equal_to=False):
                 lr_pairs_counts[lr_pair] = lr_pairs_counts.setdefault(lr_pair, 0) + 1
 
     for lr_pair, count in lr_pairs_counts.items():
-        if equal_to:
+        if method == "all":
+            if count == len(samples):
+                lr_pairs.append(lr_pair)
+        elif method == ">=50%":
             if count >= len(samples) / 2:
                 lr_pairs.append(lr_pair)
-        else:
+        elif method == ">50%":
             if count > len(samples) / 2:
                 lr_pairs.append(lr_pair)
+        elif method == "any":
+            lr_pairs.append(lr_pair)
+        else:
+            raise ValueError("Method must be 'all', '>=50%', '>50%', or 'any'.")
 
     return lr_pairs
 
@@ -130,13 +140,13 @@ def normalise_between_tech(samples, method="mean"):
     return samples
 
 
-def integrate_samples(samples, all_lr_pairs=False):
+def integrate_samples(samples, method=">=50%"):
     """Integrates matrices from different technologies.
 
     Args:
         samples (list): A list of samples with different technologies.
-        all_lr_pairs (bool) (optional): If True and two samples are used, use all the LR
-        pairs from either sample. Defaults to False.
+        method (str) (optional): The method to use for identifying LR pairs. Options are
+        "all", ">=50%", ">50%", and "any". Defaults to ">=50%".
 
     Returns:
         dict: A dictionary where keys are LR pairs and values are the integrated
@@ -149,15 +159,8 @@ def integrate_samples(samples, all_lr_pairs=False):
     integrated = {}
     lr_matrices = {}
 
-    if len(samples) == 2:
-        if all_lr_pairs:
-            lr_pairs = get_majority_lr_pairs(samples, equal_to=True)
-        else:
-            lr_pairs = get_majority_lr_pairs(samples, equal_to=False)
-
-    elif len(samples) > 2:
-        lr_pairs = sorted(get_majority_lr_pairs(samples, equal_to=True))
-
+    if len(samples) >= 2:
+        lr_pairs = sorted(get_lr_pairs(samples, method=method))
     else:
         raise ValueError("Integration needs at least two samples")
 
@@ -218,3 +221,100 @@ def calculate_overall_interactions(sample, normalisation=True):
     total = total.fillna(0)
 
     return total
+
+
+def correct_pvals_matrix(dataframes, method="stouffer"):
+    """Corrects p-values across a list of pandas DataFrames.
+
+    Args:
+        dataframes (list): A list of pandas DataFrames with p vals to combine.
+        method (str) (optional): The method to use for combining p-values. Options are
+        "stouffer" and "fisher". Defaults to "stouffer".
+
+    Returns:
+        pd.DataFrame: A DataFrame with corrected p-values.
+    """
+
+    result_df = dataframes[0]
+
+    for i in range(len(dataframes)):
+        dataframes[i], result_df = tl.align_dataframes(
+            dataframes[i], result_df, fill_value=np.NaN)
+
+    for i in range(len(dataframes)):
+        dataframes[i], result_df = tl.align_dataframes(
+            dataframes[i], result_df, fill_value=np.NaN)
+
+    result_df = result_df.astype(np.float64)
+    for i, row in result_df.iterrows():
+        for j in row.index:
+            values = [df.loc[i, j] for df in dataframes]
+            values = [
+                0.00000000001 if x == 0 else (
+                    0.9999999999 if x == 1 else x) for x in values]
+            values = [x for x in values if not np.isnan(x)]
+            result_df.loc[i, j] = stats.combine_pvalues(values, method=method, )[1]
+
+    return result_df
+
+
+def integrate_p_vals(samples, method="stouffer"):
+    """Integrates p-values from different samples.
+
+    Args:
+        samples (list): A list of dictionaries of LR matrices.
+        method (str) (optional): The method to use for combining p-values. Options
+        are "stouffer" and "fisher". Defaults to "stouffer".
+
+    Returns:
+        dict: A dictionary where keys are LR pairs and values are the integrated
+        p-values.
+    """
+
+    if not isinstance(samples, list):
+        raise ValueError("Samples must be a list of dicts of LR matrices.")
+
+    integrated = {}
+    lr_matrices = {}
+
+    lr_pairs = set()
+    for sample in samples:
+        lr_pairs.update(sample.keys())
+    lr_pairs = list(lr_pairs)
+
+    for i in range(len(lr_pairs)):
+        lr = lr_pairs[i]
+
+        for tech in range(len(samples)):
+            if lr in samples[tech]:
+                if lr in lr_matrices:
+                    lr_matrices[lr].append(samples[tech][lr])
+                else:
+                    lr_matrices[lr] = [samples[tech][lr]]
+
+    for lr, matrices in lr_matrices.items():
+        integrated[lr] = correct_pvals_matrix(matrices, method=method)
+
+    return integrated
+
+
+def remove_insignificant(sample, p_vals, cutoff=0.05):
+    """Removes insignificant interactions from a sample based on p-values.
+
+    Args:
+        sample (dict): A sample containing matrices for different LR pairs.
+        p_vals (dict): A dictionary of p-values for the LR pairs in the sample.
+
+    Returns:
+        dict: A dictionary of matrices with insignificant interactions set to 0.
+    """
+
+    corrected_sample = {}
+    for lr, matrix in sample.items():
+        for i, row in matrix.iterrows():
+            for j in row.index:
+                if p_vals[lr].loc[i, j] > cutoff:
+                    matrix.loc[i, j] = 0
+        corrected_sample[lr] = matrix
+
+    return corrected_sample

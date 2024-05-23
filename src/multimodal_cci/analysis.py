@@ -10,6 +10,7 @@ import subprocess
 import umap
 import matplotlib.pyplot as plt
 import importlib.resources
+import anndata as ad
 
 from matplotlib import pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
@@ -389,6 +390,16 @@ def lr_interaction_clustering(
             color="leiden",
             size=1.5,
             cmap=cmap)
+        sc.pp.pca(LR)
+        sc.pp.highly_variable_genes(LR, flavor="seurat", n_top_genes=2000)
+        sc.pp.neighbors(LR, use_rep="X_pca", n_neighbors=15)
+        sc.tl.umap(LR)
+        sc.pl.umap(
+            LR,
+            color="leiden",
+            cmap=cmap,
+            legend_loc=None  # Remove the legend
+        )
 
         sample.obs["LR_Cluster"] = LR.obs["leiden"]
         barplot_data = (
@@ -620,3 +631,65 @@ def run_gsea(
         # ax = barplot(enr.res2d, figsize=(4, 5), color="darkred")
 
     return enr.results
+
+
+def pathway_subset(sample, gsea_results, terms, strict=False):
+    """Subsets a sample to only include interactions between genes in a set of
+    pathways.
+
+    Args:
+        sample (dict): The sample to subset.
+        gsea_results (pd.DataFrame): The GSEA results to use to subset the sample.
+        terms (list): The terms to subset the sample with.
+        strict (bool): Whether to only include interactions between genes in the
+        same pathway.
+
+    Returns:
+        dict: The subsetted sample.
+    """
+
+    genes = []
+    grouped = {}
+
+    for term in terms:
+        filtered_df = gsea_results[gsea_results['Term'] == term]
+        gene_list = filtered_df['Genes'].tolist()
+
+        for gene in gene_list:
+            genes.extend(gene.lower().split(";"))
+
+    for key in sample.keys():
+        lig, rec = key.lower().split("_")
+        if strict:
+            if lig in genes and rec in genes:
+                grouped[key] = sample[key]
+        else:
+            if lig in genes or rec in genes:
+                grouped[key] = sample[key]
+
+    return grouped
+
+
+def add_lr_module_score(sample, lr_list, key_name="score"):
+    """Adds a module score to an AnnData object run through stLearn based on the
+    interactions in a list of ligand-receptor pairs.
+
+    Args:
+        sample (AnnData): The AnnData object to add the score to. Must be processed
+        through stLearn.
+        lr_list (list): The list of ligand-receptor pairs to use.
+        key_name (str): The key to use for the score.
+
+    Returns:
+        AnnData: The AnnData object with the module score added.
+    """
+
+    lr_counts = pd.DataFrame(sample.obsm['lr_sig_scores'])
+    lr_counts.index = sample.obs.index
+    lr_counts.columns = sample.uns['lr_summary'].index
+
+    adata = ad.AnnData(lr_counts)
+    sc.tl.score_genes(adata, gene_list=lr_list)
+    sample.obs[key_name] = adata.obs['score']
+
+    return sample
