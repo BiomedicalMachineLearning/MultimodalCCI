@@ -66,7 +66,7 @@ MMCCI allows users to integrate multiple CCI results together, both:
 1. Samples from a single modality (eg. Visium)
 2. Samples from multiple modalities (eg. Visium, Xenium and CosMX)
 
-![Integration Method](docs/images/integration_method.png)
+![Integration and Analysis Method](docs/images/analyses_pipeline.png)
 
 ## CCI Analysis
 
@@ -76,8 +76,6 @@ MMCCI provides multiple useful analyses that can be run on the integrated networ
 3. Clustering of spots/cells with similar interaction scores
 4. Sender-receiver LR querying
 5. GSEA pathway analysis
-
-![Downstream Analyses](docs/images/analyses.png)
 
 ### Pipeline Diagram
 
