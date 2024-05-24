@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: multimodal_cci
-Version: 1.1.0
+Version: 1.1.1
 Summary: A Python package for processing multi-modal CCI data
 Home-page: https://github.com/BiomedicalMachineLearning/MultimodalCCI
 Author: Genomics and Machine Learning lab
@@ -10,7 +10,7 @@ Project-URL: repository, https://github.com/BiomedicalMachineLearning/Multimodal
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
-Requires-Python: >=3.9
+Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE.txt
 Requires-Dist: numpy>=1.24.0
@@ -92,7 +92,7 @@ MMCCI allows users to integrate multiple CCI results together, both:
 1. Samples from a single modality (eg. Visium)
 2. Samples from multiple modalities (eg. Visium, Xenium and CosMX)
 
-![Integration Method](docs/images/integration_method.png)
+![Integration and Analysis Method](docs/images/analyses_pipeline.png)
 
 ## CCI Analysis
 
@@ -102,8 +102,6 @@ MMCCI provides multiple useful analyses that can be run on the integrated networ
 3. Clustering of spots/cells with similar interaction scores
 4. Sender-receiver LR querying
 5. GSEA pathway analysis
-
-![Downstream Analyses](docs/images/analyses.png)
 
 ### Pipeline Diagram
 
