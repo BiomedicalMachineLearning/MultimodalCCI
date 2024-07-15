@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import copy
 
 from scipy import stats
+from tqdm import tqdm
 
 from . import scoring as sc
 from . import tools as tl
@@ -36,7 +38,8 @@ def normalise_within_tech(samples, sample_sizes, target=None):
 
 
 def get_lr_pairs(samples, method=">=50%"):
-    """Identifies the LR pairs present in a list of samples according to the given method.
+    """Identifies the LR pairs present in a list of samples according to the given
+    method.
 
     Args:
         samples (list): A list of dictionaries of LR matrices
@@ -140,13 +143,17 @@ def normalise_between_tech(samples, method="mean"):
     return samples
 
 
-def integrate_samples(samples, method=">=50%"):
+def integrate_samples(samples, method=">=50%", sum=False, strict=False):
     """Integrates matrices from different technologies.
 
     Args:
         samples (list): A list of samples with different technologies.
         method (str) (optional): The method to use for identifying LR pairs. Options are
         "all", ">=50%", ">50%", and "any". Defaults to ">=50%".
+        sum (bool) (optional): Whether to sum instead of multiply the matrices. Defaults
+        to False.
+        strict (bool) (optional): If True, only interactions where more than 50% of the 
+        values are non-zero will be multiplied. Defaults to False.
 
     Returns:
         dict: A dictionary where keys are LR pairs and values are the integrated
@@ -174,12 +181,33 @@ def integrate_samples(samples, method=">=50%"):
                 else:
                     lr_matrices[lr] = [samples[tech][lr]]
 
-    for lr, matrices in lr_matrices.items():
-        if len(matrices) == 2:
-            integrated[lr] = (matrices[0] * matrices[1]).fillna(0)
-            integrated[lr] = np.sqrt(integrated[lr]).fillna(0)
-        elif len(matrices) > 2:
-            integrated[lr] = sc.multiply_non_zero_values(matrices)
+    with tqdm(total=len(lr_pairs), desc="Integrating LR matrices") as pbar:
+        for lr, matrices in lr_matrices.items():
+            if len(matrices) == 2:
+                if sum:
+                    matrices[0], matrices[1] = tl.align_dataframes(matrices[0], 
+                                                                   matrices[1])
+                    integrated[lr] = matrices[0] + matrices[1]
+                    integrated[lr] = integrated[lr] / 2
+                    integrated[lr] = integrated[lr].fillna(0)
+                else:
+                    integrated[lr] = (matrices[0] * matrices[1]).fillna(0)
+                    integrated[lr] = np.sqrt(integrated[lr]).fillna(0)
+            elif len(matrices) > 2:
+                if sum:
+                    integrated[lr] = matrices[0]
+                    for i in range(1, len(matrices)):
+                        integrated[lr], matrices[i] = tl.align_dataframes(
+                            integrated[lr], matrices[i])
+                        integrated[lr] = integrated[lr] + matrices[i]
+                    integrated[lr] = integrated[lr] / len(matrices)
+                    integrated[lr] = integrated[lr].fillna(0)
+                else:
+                    integrated[lr] = sc.multiply_non_zero_values(matrices, 
+                                                                 strict=strict)
+            else:
+                integrated[lr] = matrices[0]
+            tqdm.update(pbar, 1)
 
     return integrated
 
@@ -292,8 +320,10 @@ def integrate_p_vals(samples, method="stouffer"):
                 else:
                     lr_matrices[lr] = [samples[tech][lr]]
 
-    for lr, matrices in lr_matrices.items():
-        integrated[lr] = correct_pvals_matrix(matrices, method=method)
+    with tqdm(total=len(lr_matrices), desc="Integrating p values") as pbar:
+        for lr, matrices in lr_matrices.items():
+            integrated[lr] = correct_pvals_matrix(matrices, method=method)
+            pbar.update(1)
 
     return integrated
 
@@ -310,7 +340,8 @@ def remove_insignificant(sample, p_vals, cutoff=0.05):
     """
 
     corrected_sample = {}
-    for lr, matrix in sample.items():
+    sample_copy = copy.deepcopy(sample)
+    for lr, matrix in sample_copy.items():
         for i, row in matrix.iterrows():
             for j in row.index:
                 if p_vals[lr].loc[i, j] > cutoff:

@@ -74,12 +74,14 @@ def dissimilarity_score(
     return wt_dissim + bin_dissim
 
 
-def multiply_non_zero_values(dataframes):
+def multiply_non_zero_values(dataframes, strict=False):
     """Multiply non-zero values across a list of pandas DataFrames.
 
     Parameters:
     - dataframes (list): A list of pandas DataFrames with the same shape and column/row
     names.
+    - strict (bool) (optional): If True, only interactions where more than 50% of the 
+    values are non-zero will be multiplied. Defaults to False.
 
     Returns:
     - pd.DataFrame: A new DataFrame where each cell contains the product of non-zero
@@ -100,8 +102,11 @@ def multiply_non_zero_values(dataframes):
             values = [df.loc[i, j] for df in dataframes]
             non_zero_values = [value for value in values if value != 0]
 
-            if len(non_zero_values) / len(values) <= 0.5:
-                result_df.loc[i, j] = 0
+            if strict:
+                if len(non_zero_values) / len(values) <= 0.5:
+                    result_df.loc[i, j] = 0
+                else:
+                    result_df.loc[i, j] = np.prod(non_zero_values, dtype=np.float64)
             else:
                 result_df.loc[i, j] = np.prod(non_zero_values, dtype=np.float64)
 

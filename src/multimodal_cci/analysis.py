@@ -120,8 +120,11 @@ def get_lrs_per_celltype(sample, sender, reciever):
 
     if not isinstance(sample, dict):
         raise ValueError("The sample must be a dict of LR matrices.")
-
-    names = []
+    
+    keys = sample.keys()
+    for key in keys:
+        if type(sample[key]) != pd.DataFrame:
+            del sample[key]
 
     sample = {key: df.loc[[sender]] for key, df in sample.items() if sender in df.index}
 
@@ -153,6 +156,41 @@ def get_lrs_per_celltype(sample, sender, reciever):
     lr_props = dict(sorted(lr_props.items(), key=lambda item: item[1], reverse=True))
 
     return lr_props
+
+
+def get_p_vals_per_celltype(sample, sender, reciever):
+    """Compares LR pairs between two samples for specific cell types.
+
+    Args:
+        samples (dict): A dictionary containing LR matrices for the
+        first sample.
+        sender (str): The sender cell type.
+        reciever (str): The receiver cell type.
+
+    Returns:
+        dict: A dictionary containing the p-values for each interaction
+    """
+
+    if not isinstance(sample, dict):
+        raise ValueError("The sample must be a dict of LR matrices.")
+
+    keys = sample.keys()
+    for key in keys:
+        if type(sample[key]) != pd.DataFrame:
+            del sample[key]
+            
+    sample = {key: df.loc[[sender]] for key, df in sample.items() if sender in df.index}
+
+    sample = {
+        key: df[[reciever]] for key, df in sample.items() if reciever in df.columns
+    }
+
+    result = {}
+    for lr_pair in set(sample.keys()):
+        result[lr_pair] = sample[lr_pair].at[sender, reciever]
+        
+    return result
+
 
 
 def lr_grouping(sample, n_clusters=0, clustering="KMeans"):
@@ -625,10 +663,6 @@ def run_gsea(
             figsize=(3, 5),
             color=colour_dict
         )
-
-        # ax = dotplot(enr.res2d, cmap="viridis_r", size=10, figsize=(3, 5))
-
-        # ax = barplot(enr.res2d, figsize=(4, 5), color="darkred")
 
     return enr.results
 

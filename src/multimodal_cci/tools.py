@@ -86,6 +86,38 @@ def read_stLearn(path, key="cell_type", return_adata=False):
     return out
 
 
+def convert_stLearn(adata, key="cell_type", return_adata=False):
+    """Reads a stLearn ligand-receptor analysis output and converts it to a dictionary
+    of LR matrices that can be used with the multimodal cci functions.
+
+    Args:
+        adata (AnnData): The stLearn ligand-receptor analysis output.
+        key (str) (optional): The key in adata.obs that was used for CCI. Defaults to
+            "cell_type".
+        return_adata (bool) (optional): Whether to return the AnnData object as well.
+            Defaults to False.
+
+    Returns:
+        dict: The n_spots, lr_scores, lr_pvals, and AnnData (optional).
+    """
+
+    if return_adata:
+        out = {
+            "n_spots": adata.shape[0],
+            "lr_scores": adata.uns[f"per_lr_cci_raw_{key}"],
+            "lr_pvals": adata.uns[f"per_lr_cci_pvals_{key}"],
+            "adata": adata
+        }
+    else:
+        out = {
+            "n_spots": adata.shape[0],
+            "lr_scores": adata.uns[f"per_lr_cci_raw_{key}"],
+            "lr_pvals": adata.uns[f"per_lr_cci_pvals_{key}"]
+        }
+
+    return out
+
+
 def read_CellPhoneDB(means_path, pvals_path):
     """Reads a CellPhoneDB interaction scores txt file and converts it to a dictionary
     of LR matrices that can be used with the multimodal cci functions.
