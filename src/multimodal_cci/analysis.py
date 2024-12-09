@@ -192,17 +192,17 @@ def get_p_vals_per_celltype(sample, sender, reciever):
     return result
 
 
-
-def lr_grouping(sample, n_clusters=0, clustering="KMeans"):
+def cell_network_clustering(sample, n_clusters=0, method="KMeans"):
     """Groups and ranks LR pairs using their clusters and dissimilarities.
 
     Args:
         sample (dict): A dictionary containing LR matrices.
-        clusters (pd.DataFrame): A DataFrame with the cluster assignments for each
-        sample.
+        n_clusters (int) (optional): The desired number of clusters. If 0, the optimal
+        number is determined using silhouette analysis. Defaults to 0.
+        method (str) (optional): The clustering method to use. Defaults to 'KMeans'.
 
     Returns:
-        final_clusters (2-dataframes): LR-pairs as rownames and its Cluster
+        pd.DataFrame: A DataFrame with the cluster assignments for each sample.
     """
 
     if not isinstance(sample, dict):
@@ -243,8 +243,8 @@ def lr_grouping(sample, n_clusters=0, clustering="KMeans"):
                     # Store the result in the result_df
                     result_df.loc[key1, key2] = result
                 pbar.update(1)
-        final_clusters_multiple = lr_clustering(
-            result_df, sample, n_clusters, clustering
+        final_clusters_multiple = _lr_cluster_helper(
+            result_df, sample, n_clusters, method
         )
 
     if one_interaction_sample is not None:
@@ -268,7 +268,7 @@ def lr_grouping(sample, n_clusters=0, clustering="KMeans"):
             it.calculate_overall_interactions(one_interaction_sample).values.diagonal()
             == 0
         ).sum()
-        final_clusters_single = lr_clustering(
+        final_clusters_single = _lr_cluster_helper(
             result_df_one, one_interaction_sample, n_clusters
         )
         final_clusters_single["Cluster"] = (
@@ -281,14 +281,14 @@ def lr_grouping(sample, n_clusters=0, clustering="KMeans"):
     return final_clusters
 
 
-def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
-    """Clusters LR pairs based on LR matrix similarities.
-
+def _lr_cluster_helper(result_df, sample, n_clusters=0, method="KMeans"):
+    """
     Args:
         result_df (pd.DataFrame): A DataFrame containing dissimilarity scores for LRs
         sample (dict): A dictionary containing LR matrices.
         n_clusters (int) (optional): The desired number of clusters. If 0, the optimal
         number is determined using silhouette analysis. Defaults to 0.
+        method (str) (optional): The clustering method to use. Defaults to 'KMeans'.
 
     Returns:
         pd.DataFrame: A DataFrame with the cluster assignments for each sample.
@@ -323,16 +323,16 @@ def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
         # Number of clusters (adjust as needed)
         n_clusters = n_clusters
 
-        if clustering == "Hierarchial":
+        if method == "Hierarchial":
             # Perform hierarchical clustering
             model = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
             clusters = model.fit_predict(pc_com_dist_matrix)
-        if clustering == "KMeans":
+        if method == "KMeans":
             kmeans = KMeans(n_clusters=n_clusters, random_state=42)
             clusters = kmeans.fit_predict(pc_com_dist_matrix)
 
     if n_clusters == 0:
-        if clustering == "Hierarchial":
+        if method == "Hierarchial":
             # Evaluate silhouette score for different numbers of clusters
             silhouette_scores = []
             for n_clusters in range(2, 11):
@@ -351,7 +351,7 @@ def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
             )  # as indexing starts from 0
             clusters = model.fit_predict(pc_com_dist_matrix)
 
-        if clustering == "KMeans":
+        if method == "KMeans":
             # Find optimal numer of clusters Davies-Bouldin index
             db_scores = []
             for k in range(2, 11):
@@ -389,154 +389,108 @@ def lr_clustering(result_df, sample, n_clusters=0, clustering="KMeans"):
     final_clusters.set_index("LRs", inplace=True)
     return final_clusters
 
-
+    
 def lr_interaction_clustering(
-        sample,
-        clustering="leiden",
-        cmap="jet",
-        spot_size=None):
+    sample, 
+    resolution=0.5, 
+    palette="Dark2_r", 
+    cell_colors=None, 
+    spot_size=1.5, 
+    spatial_plot=True, 
+    proportion_plot=True,
+    return_adata=False,
+    **kwargs
+    ):
     """Clustering of spatial LR interaction scores on AnnData objects processed through
     stLearn.
 
     Args:
-        sample (AnnData): An AnnData object that has been run through stLearn.
-        clustering (str) (optional): The clustering method to use. Defaults to 'KMeans'.
-        cmap (str) (optional): The colormap to use for the spatial plots. Defaults to
-        'viridis'.
-        spot_size (int) (optional): The size of the spots in the spatial plots. Defaults
-        to None.
+    sample (AnnData): An AnnData object that has been run through stLearn.
+    resolution (float) (optional): The resolution to use for the clustering. Defaults to
+    0.5.
+    palette (str) (optional): The palette to use for the UMAP plot. Defaults to
+    'Dark2_r'.
+    cell_colors (dict) (optional): A dictionary mapping cell types to colors. Defaults
+    to None.
+    spot_size (float) (optional): The size of the spots in the spatial plot. Defaults to
+    1.5.
+    spatial_plot (bool) (optional): Whether to show the spatial plot. Defaults to True.
+    proportion_plot (bool) (optional): Whether to show the proportion plot. Defaults to
+    True.
+    return_adata (bool) (optional): Whether to return the AnnData object with the
+    clustering results. Defaults to False.
+    **kwargs: Additional keyword arguments to pass to the scanpy spatial plot function.
+    
+    Returns:
+    AnnData: An AnnData object with the clustering results.
     """
 
     LR = pd.DataFrame(sample.obsm["lr_scores"])
     LR.columns = list(sample.uns["lr_summary"].index)
     LR.index = sample.obs.index
 
-    if clustering == "leiden":
-        LR = sc.AnnData(LR)
-        sc.pp.normalize_total(LR, inplace=True)
-        sc.pp.log1p(LR)
-        sc.pp.pca(LR)
-        sc.pp.highly_variable_genes(LR, flavor="seurat", n_top_genes=2000)
-        sc.pp.neighbors(LR, use_rep="X_pca", n_neighbors=15)
-        sc.tl.leiden(LR, resolution=0.5)
-        LR.obsm = sample.obsm
-        LR.uns = sample.uns
-        LR.obs["leiden"] = LR.obs["leiden"].astype("int64")
-        sc.pl.spatial(
-            LR,
-            img_key="hires",
-            color="leiden",
-            size=1.5,
-            cmap=cmap)
-        sc.pp.pca(LR)
-        sc.pp.highly_variable_genes(LR, flavor="seurat", n_top_genes=2000)
-        sc.pp.neighbors(LR, use_rep="X_pca", n_neighbors=15)
-        sc.tl.umap(LR)
-        sc.pl.umap(
-            LR,
-            color="leiden",
-            cmap=cmap,
-            legend_loc=None  # Remove the legend
-        )
+    LR = sc.AnnData(LR)
+    sc.pp.normalize_total(LR, inplace=True)
+    sc.pp.log1p(LR)
+    sc.pp.pca(LR)
+    sc.pp.highly_variable_genes(LR, flavor="seurat", n_top_genes=2000)
+    sc.pp.neighbors(LR, use_rep="X_pca", n_neighbors=15)
+    sc.tl.leiden(LR, resolution=resolution)
+    
+    sc.tl.rank_genes_groups(LR, groupby='leiden', method='wilcoxon')
+    # sc.pl.rank_genes_groups(LR, n_genes=25, sharey=False)
+    sc.tl.dendrogram(LR, groupby='leiden')
+    sc.pl.rank_genes_groups_dotplot(LR, n_genes=10, groupby='leiden')
+    
+    LR.obsm = sample.obsm
+    LR.uns = sample.uns
+    LR.obs["leiden"] = LR.obs["leiden"].astype("int64")
 
-        sample.obs["LR_Cluster"] = LR.obs["leiden"]
-        barplot_data = (
-            sample
-            .obs.groupby(["cell_type", "LR_Cluster"])
-            .size()
-            .reset_index(name="Count")
-        )
+    sc.pp.pca(LR)
+    sc.pp.highly_variable_genes(LR, flavor="seurat", n_top_genes=2000)
+    sc.pp.neighbors(LR, use_rep="X_pca", n_neighbors=15)
+    sc.tl.umap(LR)
+    
+    sample.obs["LR_Cluster"] = LR.obs["leiden"].astype("str")
+    
+    if spatial_plot:        
+        # sc.pl.umap(LR, color="LR_Cluster", palette=palette, legend_loc=None)
+        sc.pl.spatial(sample, color="LR_Cluster", size=spot_size, palette=palette, 
+                      **kwargs)
+        
+    if proportion_plot:
+        if "cell_type" in sample.uns:
+            # make any value less than 0.1 == 0 in sample.uns['cell_type']
+            sample.uns['cell_type'] = sample.uns['cell_type'].applymap(
+                lambda x: 0 if x < 0.1 else x)
+            
+            merged_df = sample.uns['cell_type'].merge(sample.obs["LR_Cluster"], 
+                                                    left_index=True, right_index=True)
+            proportions = merged_df.groupby('LR_Cluster').mean()
+            proportions = proportions.div(proportions.sum(axis=1), axis=0)
+        else:
+            proportions = sample.obs.groupby('LR_Cluster')['cell_type'] \
+                .value_counts(normalize=True).unstack()
 
-        # Calculate proportions for each category in col2
-        proportions = (
-            barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
-            .sum()
-            .unstack("LR_Cluster")
-        )
-        proportions = proportions.div(proportions.sum(axis=1), axis=0)
+        fig, (ax1, ax2) = plt.subplots(1, 2, gridspec_kw={'width_ratios': [4, 1]})
 
-        # Create a stacked barplot
-        sns.set(style="whitegrid")
-        proportions.plot(kind="bar", stacked=True, colormap=cmap)
-        plt.ylabel("Proportion")
-        plt.legend().remove()
+        bars = proportions.plot(kind="bar", stacked=True, ax=ax1, 
+                                color=proportions.columns.to_series().map(cell_colors))  
+        # Use colormap based on cell types
+        ax1.set_ylabel("Proportion")
+        ax1.legend().remove()  # Remove default legend
+
+        # Create a legend without plot elements
+        handles, labels = bars.get_legend_handles_labels()  # Get handles and labels 
+        # from the bar plot
+        ax2.legend(handles, labels, loc='center')
+        ax2.axis('off')
+
+        plt.tight_layout()
         plt.show()
 
-    if clustering == "hierarchical":
-        for n_clusters in range(2, 11):
-            # Find optimal numer of clusters Silhouette
-            clusterer = AgglomerativeClustering(
-                n_clusters=n_clusters, linkage="ward"
-            )
-            cluster_labels = clusterer.fit_predict(LR)
-            silhouette_avg = silhouette_score(LR, cluster_labels)
-        # Perform hierarchical clustering
-        model = AgglomerativeClustering(
-            n_clusters=np.argmax(silhouette_avg) + 2, linkage="ward"
-        )
-        LR["Cluster"] = model.fit_predict(LR)
-
-    if clustering == "kmeans":
-        # Find optimal numer of clusters Davies-Bouldin index
-        db_scores = []
-        for k in range(2, 11):
-            kmeans = KMeans(n_clusters=k, random_state=42)
-            labels = kmeans.fit_predict(LR)
-            db_scores.append(davies_bouldin_score(LR, labels))
-        # Add 2 to account for starting with k=2
-        optimal_clusters = np.argmin(db_scores) + 2
-        print(f"The optimal number of clusters is: {optimal_clusters}")
-        kmeans = KMeans(n_clusters=optimal_clusters, random_state=42)
-        LR["Cluster"] = kmeans.fit_predict(LR)
-
-    if clustering == "hierarchical" or clustering == "kmeans":
-        # Perform UMAP
-        umap_model = umap.UMAP(n_components=2, random_state=42)
-        umap_result = umap_model.fit_transform(LR.drop("Cluster", axis=1))
-
-        # Plot the UMAP results colored by cluster
-        plt.scatter(
-            umap_result[:, 0], umap_result[:, 1], c=LR["Cluster"], cmap=cmap
-        )
-        plt.xticks([])  # Hide x-axis tick marks and labels
-        plt.yticks([])  # Hide y-axis tick marks and labels
-        plt.axis('off')  # Hide the border
-        plt.show()
-
-        sample.obs["LR_Cluster"] = LR["Cluster"].astype("object")
-        barplot_data = (
-            sample
-            .obs.groupby(["cell_type", "LR_Cluster"])
-            .size()
-            .reset_index(name="Count")
-        )
-
-        # Calculate proportions for each category in col2
-        proportions = (
-            barplot_data.groupby(["cell_type", "LR_Cluster"])["Count"]
-            .sum()
-            .unstack("LR_Cluster")
-        )
-        proportions = proportions.div(proportions.sum(axis=1), axis=0)
-
-        # Create a stacked barplot
-        sns.set(style="whitegrid")
-        proportions.plot(kind="bar", stacked=True, colormap=cmap)
-        plt.ylabel("Proportion")
-        plt.legend().remove()
-        plt.show()
-
-        # Show spatial plot
-        sample.obs["LR_Cluster"] = (
-            sample.obs["LR_Cluster"].astype("int64")
-        )
-        sc.pl.spatial(
-            sample,
-            color="LR_Cluster",
-            cmap=cmap,
-            spot_size=spot_size,
-            legend_loc=None  # Remove the legend
-        )
+    if return_adata:
+        return LR
 
 
 def subset_clusters(sample, clusters):
@@ -598,7 +552,10 @@ def run_gsea(
     lrs=None,
     organism="human",
     gene_sets=["KEGG_2021_Human", "MSigDB_Hallmark_2020"],
-    show_plots=True,
+    show_dotplot=False,
+    show_barplot=True,
+    top_term=5,
+    figsize=(3,5),
 ):
     """Runs GSEA analysis on a sample.
 
@@ -610,7 +567,10 @@ def run_gsea(
         gene_sets (list) (optional): The gene sets to use for gseapy analysis. Defaults
         to ['KEGG_2021_Human',
         'MSigDB_Hallmark_2020'].
-        show_plots (bool) (optional): Whether to show plots or not. Defaults to True.
+        show_dotplot (bool) (optional): Whether to show the dotplot. Defaults to False.
+        show_barplot (bool) (optional): Whether to show the barplot. Defaults to True.
+        top_term (int) (optional): The number of top terms to show. Defaults to 5.
+        figsize (tuple) (optional): The size of the figure. Defaults to (3,5).
 
     Returns:
         pd.DataFrame: A DataFrame with the GSEA results.
@@ -636,33 +596,40 @@ def run_gsea(
         organism=organism,
         outdir=None,
     )
-
-    if show_plots:
-
+        
+    if show_dotplot:
+        
+        try:
+            ax = dotplot(
+                enr.results,
+                column="Adjusted P-value",
+                x="Gene_set",
+                size=10,
+                top_term=top_term,
+                figsize=figsize,
+                xticklabels_rot=45,
+                show_ring=True,
+                marker="o",
+            )
+        except:
+            print("Could not plot dotplot.")
+        
+    if show_barplot:
         colours = list(plt.cm.Dark2.colors)
         colour_dict = {gene_set: colours[i] for i, gene_set in enumerate(gene_sets)}
-
-        ax = dotplot(
-            enr.results,
-            column="Adjusted P-value",
-            x="Gene_set",
-            size=10,
-            top_term=5,
-            figsize=(3, 5),
-            xticklabels_rot=45,
-            show_ring=True,
-            marker="o",
-        )
-
-        ax = barplot(
-            enr.results,
-            column="Adjusted P-value",
-            group="Gene_set",
-            size=10,
-            top_term=5,
-            figsize=(3, 5),
-            color=colour_dict
-        )
+    
+        try:
+            ax = barplot(
+                enr.results,
+                column="Adjusted P-value",
+                group="Gene_set",
+                size=10,
+                top_term=top_term,
+                figsize=figsize,
+                color=colour_dict
+            )
+        except:
+            print("Could not plot barplot.")
 
     return enr.results
 

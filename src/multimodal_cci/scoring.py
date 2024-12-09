@@ -80,7 +80,7 @@ def multiply_non_zero_values(dataframes, strict=False):
     Parameters:
     - dataframes (list): A list of pandas DataFrames with the same shape and column/row
     names.
-    - strict (bool) (optional): If True, only interactions where more than 50% of the 
+    - strict (bool) (optional): If True, only interactions where more than 50% of the
     values are non-zero will be multiplied. Defaults to False.
 
     Returns:
@@ -108,7 +108,10 @@ def multiply_non_zero_values(dataframes, strict=False):
                 else:
                     result_df.loc[i, j] = np.prod(non_zero_values, dtype=np.float64)
             else:
-                result_df.loc[i, j] = np.prod(non_zero_values, dtype=np.float64)
+                if len(non_zero_values) == 0:
+                    result_df.loc[i, j] = 0
+                else:
+                    result_df.loc[i, j] = np.prod(non_zero_values, dtype=np.float64)
 
     result_df = np.power(result_df, 1 / len(values)).fillna(0)
 

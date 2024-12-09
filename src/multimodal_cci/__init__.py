@@ -4,4 +4,4 @@ from . import scoring as sc
 from . import tools as tl
 from . import analysis as an
 
-__version__ = "1.2.0"
+__version__ = "1.2.3"

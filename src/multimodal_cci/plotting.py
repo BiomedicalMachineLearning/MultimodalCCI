@@ -25,6 +25,7 @@ def network_plot(
     node_colors=None,
     node_palette=None,
     outer_node_palette=None,
+    show=True,
 ):
     """Plots a network with optional edge significance highlighting and node
     coloring based on in-degree and out-degree difference.
@@ -60,6 +61,10 @@ def network_plot(
         Defaults to None.
         outer_node_palette (str, optional): The name of the color palette to use for
         outer nodes to show sender/reciever nodes. Defaults to None.
+        show (bool, optional): Whether to show the plot or not. Defaults to True.
+
+    Returns:
+        tuple: A tuple containing the figure and axis objects.
     """
 
     if isinstance(network, dict):
@@ -67,7 +72,7 @@ def network_plot(
             "Input should be a single matrix, not a sample. You may need to run \
                 calculate_overall_interactions() first or select an LR pair.")
 
-    plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
 
     if remove_unconnected:
         network = network.loc[(network != 0).any(axis=1), (network != 0).any(axis=0)]
@@ -102,6 +107,7 @@ def network_plot(
     else:
         outer_node_cmap = plt.get_cmap(outer_node_palette)
 
+    
     edge_colors = []
     # Map node colors to the in-degree and out-degree difference
     if sum(abs(value) for value in in_out_diff.values()) == 0:
@@ -324,7 +330,11 @@ def network_plot(
     ax.margins(0.08)
     plt.axis("off")
     plt.tight_layout()
-    plt.show()
+
+    if show:
+        plt.show()
+    else:
+        return fig, ax
 
 
 def chord_plot(
@@ -350,6 +360,9 @@ def chord_plot(
         title (str): Title of the plot. Defaults to None.
         label_size (int): Font size of the labels. Defaults to None.
         figsize (tuple): Size of the figure. Defaults to None.
+
+    Returns:
+        tuple: A tuple containing the figure and axis objects.
     """
 
     if isinstance(network, dict):
@@ -397,13 +410,14 @@ def chord_plot(
 
 
 def dissim_hist(
-    dissimilarity_scores, 
-    x_label_size=24, 
-    y_label_size=24, 
+    dissimilarity_scores,
+    x_label_size=24,
+    y_label_size=24,
     x_tick_size=14,
     y_tick_size=12,
-    figsize=(6,5),
-    ):
+    figsize=(6, 5),
+    show=True,
+):
     """Plots a histogram of dissimilarity scores.
 
     Args:
@@ -413,9 +427,12 @@ def dissim_hist(
         x_tick_size (int): Font size for ticks. Defaults to 14.
         y_tick_size (int): Font size for ticks. Defaults to 12.
         figsize (tuple): Size of the figure. Defaults to (10, 8).
+
+    Returns:
+        matplotlib.figure.Figure: The figure
     """
 
-    plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     plt.style.use('default')
     plt.hist(list(dissimilarity_scores.values()))
     plt.xlim(0, 1)
@@ -423,7 +440,12 @@ def dissim_hist(
     plt.ylabel("Count", fontsize=y_label_size)
     plt.tick_params(axis='x', which='major', labelsize=x_tick_size)
     plt.tick_params(axis='y', which='major', labelsize=y_tick_size)
-    plt.show()
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+        return fig
 
 
 def lr_top_dissimilarity(
@@ -434,7 +456,8 @@ def lr_top_dissimilarity(
     y_label_size=24,
     x_tick_size=14,
     y_tick_size=12,
-    figsize=(6,5),
+    figsize=(6, 5),
+    show=True,
 ):
     """Plots a bar plot of LR pairs with highest/lowest dissimilarity scores.
 
@@ -447,7 +470,10 @@ def lr_top_dissimilarity(
         y_label_size (int): Font size for y-axis label. Defaults to 24.
         x_tick_size (int): Font size for ticks. Defaults to 14.
         y_tick_size (int): Font size for ticks. Defaults to 12.
-        figsize (tuple): Size of the figure. Defaults to (10, 8).    
+        figsize (tuple): Size of the figure. Defaults to (10, 8).
+
+    Returns:
+        matplotlib.figure.Figure: The figure
     """
 
     reverse = not top
@@ -457,45 +483,60 @@ def lr_top_dissimilarity(
     top_n_items = sorted_items[-n:]
     keys, values = zip(*top_n_items)
 
-    plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     plt.style.use('default')
     plt.barh(keys, values)
     plt.xlabel("Dissimilarity Score", fontsize=x_label_size)
     plt.ylabel("LR Pair", fontsize=y_label_size)
     plt.tick_params(axis='x', which='major', labelsize=x_tick_size)
     plt.tick_params(axis='y', which='major', labelsize=y_tick_size)
-    plt.show()
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+        return fig
 
 
 def silhouette_scores_plot(
     silhouette_scores,
     figsize=(10, 7),
-    ):
+    show=True,
+):
     """Plots a line plot of silhouette scores.
 
     Args:
         silhouette_scores (list): A list of silhouette scores.
         figsize (tuple): Size of the figure. Defaults to (10, 7).
+
+    Returns:
+        matplotlib.figure.Figure: The figure
     """
 
-    plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     plt.style.use('fast')
     plt.plot(range(2, 11), silhouette_scores, marker="o")
     plt.title("Silhouette Score for Different Numbers of Clusters")
     plt.xlabel("Number of Clusters")
     plt.ylabel("Silhouette Score")
-    plt.show()
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+        return fig
 
 
 def lr_barplot(
-    sample, 
-    n=15, 
-    x_label_size=24, 
-    y_label_size=24, 
+    sample,
+    n=15,
+    x_label_size=24,
+    y_label_size=24,
     x_tick_size=14,
     y_tick_size=12,
-    figsize=(6,5),
-    ):
+    figsize=(6, 5),
+    show=True,
+):
     """Plots a bar plot of LR pairs and their proportions for a sample.
 
     Args:
@@ -507,6 +548,9 @@ def lr_barplot(
         x_tick_size (int): Font size for tick labels. Defaults to 14.
         y_tick_size (int): Font size for tick labels. Defaults to 12.
         figsize (tuple): Size of the figure. Defaults to (10, 8).
+
+    Returns:
+        matplotlib.figure.Figure: The figure
     """
 
     if not isinstance(sample, dict):
@@ -517,15 +561,20 @@ def lr_barplot(
     interactions = interactions[-n:]
     keys, values = zip(*interactions)
     values = [value / sum(values) for value in values]
-    
-    plt.figure(figsize=figsize)
+
+    fig = plt.figure(figsize=figsize)
     plt.style.use('default')
     plt.barh(keys, values)
     plt.xlabel("Relative Interaction Strength", fontsize=x_label_size)
     plt.ylabel("LR Pair", fontsize=y_label_size)
     plt.tick_params(axis='x', which='major', labelsize=x_tick_size)
     plt.tick_params(axis='y', which='major', labelsize=y_tick_size)
-    plt.show()
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+        return fig
 
 
 def lrs_per_celltype(
@@ -538,11 +587,12 @@ def lrs_per_celltype(
     y_label_size=24,
     x_tick_size=14,
     y_tick_size=12,
-    figsize=(6,5),
+    figsize=(6, 5),
+    show=True,
 ):
     """Plots a bar plot of LR pairs and their proportions for a sender and receiver cell
     type pair along with p_values (optional).
-    
+
     Args:
         sample (dict): A dictionary of LR pairs.
         sender (str): The sender cell type.
@@ -554,8 +604,11 @@ def lrs_per_celltype(
         x_tick_size (int): Font size for tick labels. Defaults to 14.
         y_tick_size (int): Font size for tick labels. Defaults to 12.
         figsize (tuple): Size of the figure. Defaults to (10, 8).
+
+    Returns:
+        matplotlib.figure.Figure: The figure
     """
-    
+
     pairs = an.get_lrs_per_celltype(sample, sender, receiver)
     keys = list(pairs.keys())[:n]
     values = list(pairs.values())[:n]
@@ -573,18 +626,27 @@ def lrs_per_celltype(
                 labels[i] = f"{labels[i]:.3f}"
 
         # Define colors based on p-values
-        colors = ['#1f77b4' if val < 0.05 else 'grey' for val in [p_val_pairs[key] for key in keys]]
+        colors = [
+            '#1f77b4' if val < 0.05 else 'grey' for val in [
+                p_val_pairs[key] for key in keys]]
 
-    # Create the bar plot with colors
-    plt.figure(figsize=figsize)
+    # Create the figure and axis
+    fig, ax = plt.subplots(figsize=figsize)
     plt.style.use('default')
 
     if p_vals is None:
-        plt.barh(keys, values)
+        ax.barh(keys, values)
     else:
-        plt.bar_label(plt.barh(keys, values, color=colors), labels)
-    plt.xlabel("Proportion", fontsize=x_label_size)
-    plt.ylabel("LR Pair", fontsize=y_label_size)
-    plt.tick_params(axis='x', which='major', labelsize=x_tick_size)
-    plt.tick_params(axis='y', which='major', labelsize=y_tick_size)
-    plt.show()
+        bars = ax.barh(keys, values, color=colors)
+        ax.bar_label(bars, labels)
+
+    ax.set_xlabel("Proportion", fontsize=x_label_size)
+    ax.set_ylabel("LR Pair", fontsize=y_label_size)
+    ax.tick_params(axis='x', which='major', labelsize=x_tick_size)
+    ax.tick_params(axis='y', which='major', labelsize=y_tick_size)
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+        return fig

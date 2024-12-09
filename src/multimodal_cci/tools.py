@@ -261,10 +261,10 @@ def read_CellChat(path):
 
     for i in result.index:
         lr_ = result['interaction_name'][i]
-        if lr_ not in lr_dict.keys():
-            int_matrix = np.zeros((len(cell_type_set), len(cell_type_set)))
+        if lr_ not in pvals_dict.keys():
+            int_matrix = np.ones((len(cell_type_set), len(cell_type_set)))
         else:
-            int_matrix = lr_dict[lr_].values
+            int_matrix = pvals_dict[lr_].values
         row = np.where(cell_type_set == result["source"][i])[0][0]
         col = np.where(cell_type_set == result["target"][i])[0][0]
         int_matrix[row, col] = result["pval"][i]
