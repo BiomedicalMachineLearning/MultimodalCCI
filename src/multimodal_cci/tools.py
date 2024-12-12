@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import scanpy as sc
+from typing import Dict, List, Optional, Union
+from CCIData import CCIData
 
 
 def align_dataframes(m1, m2, fill_value=0):
@@ -27,107 +29,83 @@ def align_dataframes(m1, m2, fill_value=0):
     return m1, m2
 
 
-def rename_celltypes(sample, replacements):
-    """Renames cell types in a sample.
-
-    Args:
-        sample (dict): A dict of LR matrices.
-        replacements (dict): A dictionary of replacements, where the keys are the old
-            cell type names and the values are the new cell type names.
-
-    Returns:
-        dict: A dict of LR matrices with the cell type names replaced.
-    """
-
-    if not isinstance(sample, dict):
-        raise ValueError("The sample must be a dict of LR matrices.")
-
-    renamed = sample.copy()
-    for lr_pair in renamed.keys():
-        renamed[lr_pair].rename(
-            index=replacements,
-            columns=replacements,
-            inplace=True)
-
-    return renamed
-
-
-def read_stLearn(path, key="cell_type", return_adata=False):
-    """Reads a stLearn ligand-receptor analysis output and converts it to a dictionary
-    of LR matrices that can be used with the multimodal cci functions.
+def read_stLearn(path, key="cell_type", save_anndata=True) -> CCIData:
+    """Reads a stLearn ligand-receptor analysis output and converts it to a CCIData 
+    object.
 
     Args:
         path (str): The path to the stLearn ligand-receptor analysis output.
         key (str) (optional): The key in adata.obs that was used for CCI. Defaults to
             "cell_type".
-        return_adata (bool) (optional): Whether to return the AnnData object as well.
-            Defaults to False.
+        save_anndata (bool) (optional): Whether to save the AnnData object in the 
+            CCIData object. Defaults to True.
 
     Returns:
-        dict: The n_spots, lr_scores, lr_pvals, and AnnData (optional).
+        CCIData: The CCIData object.
     """
 
     adata = sc.read_h5ad(path)
 
-    if return_adata:
-        out = {
-            "n_spots": adata.shape[0],
-            "lr_scores": adata.uns[f"per_lr_cci_raw_{key}"],
-            "lr_pvals": adata.uns[f"per_lr_cci_pvals_{key}"],
-            "adata": adata
-        }
+    if save_anndata:
+        cci_data = CCIData(
+            n_spots=adata.shape[0], 
+            cci_scores=adata.uns[f"per_lr_cci_raw_{key}"], 
+            p_values=adata.uns[f"per_lr_cci_pvals_{key}"],
+            adata=adata
+            )
     else:
-        out = {
-            "n_spots": adata.shape[0],
-            "lr_scores": adata.uns[f"per_lr_cci_raw_{key}"],
-            "lr_pvals": adata.uns[f"per_lr_cci_pvals_{key}"]
-        }
+        cci_data = CCIData(
+            n_spots=adata.shape[0], 
+            cci_scores=adata.uns[f"per_lr_cci_raw_{key}"], 
+            p_values=adata.uns[f"per_lr_cci_pvals_{key}"]
+            )
 
-    return out
+    return cci_data
 
 
-def convert_stLearn(adata, key="cell_type", return_adata=False):
-    """Reads a stLearn ligand-receptor analysis output and converts it to a dictionary
-    of LR matrices that can be used with the multimodal cci functions.
+def convert_stLearn(adata, key="cell_type", save_anndata=True) -> CCIData:
+    """Reads a stLearn ligand-receptor analysis output and converts it to a CCIData 
+    object.
 
     Args:
         adata (AnnData): The stLearn ligand-receptor analysis output.
         key (str) (optional): The key in adata.obs that was used for CCI. Defaults to
             "cell_type".
-        return_adata (bool) (optional): Whether to return the AnnData object as well.
-            Defaults to False.
+        save_anndata (bool) (optional): Whether to save the AnnData object in the 
+            CCIData object. Defaults to True.
 
     Returns:
-        dict: The n_spots, lr_scores, lr_pvals, and AnnData (optional).
+        CCIData: The CCIData object.
     """
 
-    if return_adata:
-        out = {
-            "n_spots": adata.shape[0],
-            "lr_scores": adata.uns[f"per_lr_cci_raw_{key}"],
-            "lr_pvals": adata.uns[f"per_lr_cci_pvals_{key}"],
-            "adata": adata
-        }
+    if save_anndata:
+        cci_data = CCIData(
+            n_spots=adata.shape[0], 
+            cci_scores=adata.uns[f"per_lr_cci_raw_{key}"], 
+            p_values=adata.uns[f"per_lr_cci_pvals_{key}"],
+            adata=adata
+            )
     else:
-        out = {
-            "n_spots": adata.shape[0],
-            "lr_scores": adata.uns[f"per_lr_cci_raw_{key}"],
-            "lr_pvals": adata.uns[f"per_lr_cci_pvals_{key}"]
-        }
+        cci_data = CCIData(
+            n_spots=adata.shape[0], 
+            cci_scores=adata.uns[f"per_lr_cci_raw_{key}"], 
+            p_values=adata.uns[f"per_lr_cci_pvals_{key}"]
+            )
 
-    return out
+    return cci_data
 
 
-def read_CellPhoneDB(means_path, pvals_path):
-    """Reads a CellPhoneDB interaction scores txt file and converts it to a dictionary
-    of LR matrices that can be used with the multimodal cci functions.
+def read_CellPhoneDB(means_path, pvals_path, n_spots=None) -> CCIData:
+    """Reads a CellPhoneDB interaction scores txt file and converts it to a CCIData
+    object.
 
     Args:
         means_path (str): Path to the means txt file.
         pvals_path (str): Path to the pvals txt file.
+        n_spots (int) (optional): The number of spots. Defaults to None.
 
     Returns:
-        dict: The LR scores and p_vals
+        CCIData: The CCIData object.
     """
 
     cp_obj = pd.read_csv(means_path, delimiter="\t")
@@ -159,23 +137,21 @@ def read_CellPhoneDB(means_path, pvals_path):
         val = val.fillna(1)
         p_vals_dict[key] = val
 
-    out = {
-        "lr_scores": lr_dict,
-        "lr_pvals": p_vals_dict
-    }
+    cci_data = CCIData(n_spots=n_spots, cci_scores=lr_dict, p_values=p_vals_dict)
 
-    return out
+    return cci_data
 
 
-def read_Squidpy(result):
-    """Reads a Squidpy ligand-receptor analysis output and converts it to a dictionary
-    of LR matrices that can be used with the multimodal cci functions.
+def read_Squidpy(result, n_spots=None) -> CCIData:
+    """Reads a Squidpy ligand-receptor analysis output and converts it to a CCIData
+    object.
 
     Args:
         result (dict): The output from squidpy.gr.ligrec.
+        n_spots (int) (optional): The number of spots. Defaults to None.
 
     Returns:
-        dict: The LR scores and p_vals.
+        CCIData: The CCIData object.
     """
 
     lr_dict = {}
@@ -201,7 +177,7 @@ def read_Squidpy(result):
             int_matrix, index=cell_type_set, columns=cell_type_set
         )
 
-    pvals_dict = {}
+    p_vals_dict = {}
 
     for i, row in enumerate(pvals.index):
 
@@ -218,25 +194,23 @@ def read_Squidpy(result):
 
         df = pd.DataFrame(int_matrix, index=cell_type_set, columns=cell_type_set)
         df = df.fillna(1)
-        pvals_dict[lr_] = df
+        p_vals_dict[lr_] = df
 
-    out = {
-        "lr_scores": lr_dict,
-        "lr_pvals": pvals_dict
-    }
+    cci_data = CCIData(n_spots=n_spots, cci_scores=lr_dict, p_values=p_vals_dict)
 
-    return out
+    return cci_data
 
 
-def read_CellChat(path):
+def read_CellChat(path, n_spots=None) -> CCIData:
     """Reads a CellChat ligand-receptor analysis output (cellchat@dr) and converts it to
-    a dictionary of LR matrices that can be used with the multimodal cci functions.
+    a CCIData object.
 
     Args:
         path (str): The output from cellchat@dr.
+        n_spots (int) (optional): The number of spots. Defaults to None.
 
     Returns:
-        dict: The LR scores and p_vals
+        CCIData: The CCIData object.
     """
 
     result = pd.read_csv(path)
@@ -275,23 +249,20 @@ def read_CellChat(path):
         df = df.fillna(1)
         pvals_dict[lr_] = df
 
-    out = {
-        "lr_scores": lr_dict,
-        "lr_pvals": pvals_dict
-    }
+    cci_data = CCIData(n_spots=n_spots, cci_scores=lr_dict, p_values=pvals_dict)
 
-    return out
+    return cci_data
 
 
-def read_NATMI(path):
+def read_NATMI(path, n_spots=None) -> CCIData:
     """Reads a NATMI ligand-receptor analysis output (Edges_lrc2p.csv) and converts it
-    to a dictionary of LR matrices that can be used with the multimodal cci functions.
-
+    to a CCIData object.
     Args:
         path (str): The path to Edges_lrc2p.csv.
+        n_spots (int) (optional): The number of spots. Defaults to None.
 
     Returns:
-        dict: A dictionary of LR matrices.
+        CCIData: The CCIData object.
     """
 
     result = pd.read_csv(path)
@@ -314,4 +285,7 @@ def read_NATMI(path):
             int_matrix, index=cell_type_set, columns=cell_type_set
         )
 
-    return lr_dict
+    cci_data = CCIData(n_spots=n_spots, cci_scores=lr_dict)
+    
+    return cci_data
+    
