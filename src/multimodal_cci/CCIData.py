@@ -5,13 +5,24 @@ from typing import Dict, List, Optional, Union
 from copy import deepcopy
 
 class CCIData:
-    """Class to store and manage Cell-Cell Interaction (CCI) data"""
+    """
+    Class to store and manage Cell-Cell Interaction (CCI) data
+    
+    Attributes:
+        metadata (Dict): Metadata for sample
+        n_spots (int): Number of spots in the sample
+        cci_scores (Dict): CCI score dataframe for each LR pair
+        p_values (Dict): P-values dataframe for each LR pair
+        adata (AnnData): AnnData object
+        networks (Dict): Calculated CCI networks
+    """
+    
     
     def __init__(self, 
-                 metadata: Dict = None, 
-                 n_spots: Dict = None, 
-                 cci_scores: Dict = None, 
-                 p_values: Dict = None, 
+                 metadata: Dict = {}, 
+                 n_spots: int = None, 
+                 cci_scores: Dict = {}, 
+                 p_values: Dict = {}, 
                  adata: ad.AnnData = None
                  ):
         self.metadata = metadata
@@ -19,7 +30,8 @@ class CCIData:
         self.cci_scores = cci_scores
         self.p_values = p_values
         self.adata = adata
-          
+        self.networks = {}
+        
           
     def get_sample_metadata(self, sample_id: str) -> Dict:
         """
